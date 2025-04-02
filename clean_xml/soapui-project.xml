@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<con:soapui-project xmlns:con="http://eviware.com/soapui/config" id="2bb3449f-f3af-4cfa-96a8-b4e2d432d1f6" created="3.9.0" activeEnvironment="Default" name="Mobiliser_AvionRewards_RegresssionSuite" resourceRoot="" updated="3.30.0 2022-03-16T13:04:41Z" encryptionMode="Not encrypted">
+  <con:settings>
+    <con:setting id="WsdlSettings@cache-wsdls">false</con:setting>
+  </con:settings>
+  
+  <con:interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="con:RestService" id="ab1b636c-6476-46e3-8fa7-418199caddb2" name="Mobiliser" wadlVersion="https://swagger.io/openapiv3/specification">
+    <con:settings/>
+    <con:endpoints>
+      <con:endpoint>https://mobile.sterbcroyalbank.com</con:endpoint>
+      <con:endpoint>https://mobile.sterbcroyalbank.com/ip</con:endpoint>
+      <con:endpoint>https://mobilemarketingofferservice-mqp0-mtls-dev.mtls.apps.cf2.devfg.rbc.com/secureapp/mqp0/contents/api/v1</con:endpoint>
+    </con:endpoints>
+    
+    <con:resource name="MobileSignin" path="/service/rbc/MobileSignIn" id="b4afa666-3a0f-42d8-9e29-8d6fed21dbdb">
+      <con:settings/>
+      <con:parameters/>
+      <con:method name="Method 1" id="cb14fe0a-53bf-4ed8-8096-4a36f8292cf6" method="POST">
+        <con:settings/>
+        <con:parameters/>
+        <con:request name="Request 1" id="3caacff1-1019-4178-b2d6-31ef7637fc4c" mediaType="application/xml" postQueryString="false">
+          <con:settings>
+            <con:setting id="com.eviware.soapui.impl.wsdl.WsdlRequest@request-headers">
+              <![CDATA[<xml-fragment xmlns:con="http://eviware.com/soapui/config">
+                <con:entry key="Cookie" value="rbc_akprg_allowed=true;"/>
+                <con:entry key="Content-Type" value="application/xml"/>
+                <con:entry key="device_group" value="PHONE"/>
+                <con:entry key="Connection" value="keep-alive"/>
+                <con:entry key="User-Agent" value="Apache-HttpClient/4.5.2 (Java/16.0.1)"/>
+                <con:entry key="Host" value="mobile.sterbcroyalbank.com"/>
+                <con:entry key="Accept-Encoding" value="gzip,deflate"/>
+                <con:entry key="Pragma" value="akamai-x-cache-on, akamai-x-cache-remote-on, akamai-x-check-cacheable, akamai-x-get-cache-key, akamai-x-get-true-cache-key, akamai-x-get-extracted-values, akamai-x-get-request-id"/>
+                <con:entry key="Content-Length" value="1539"/>
+                <con:entry key="Content-Type" value="application/xml"/>
+              </xml-fragment>]]>
+            </con:setting>
+          </con:settings>
+          <con:endpoint>https://mobile.sterbcroyalbank.com</con:endpoint>
+          <con:request/>
+          <con:credentials>
+            <con:selectedAuthProfile>No Authorization</con:selectedAuthProfile>
+            <con:authType>No Authorization</con:authType>
+          </con:credentials>
+          <con:jmsConfig JMSDeliveryMode="PERSISTENT"/>
+          <con:parameters/>
+        </con:request>
+      </con:method>
+    </con:resource>
+    
+    <con:resource name="WasitMeWasItNotMe" path="/service/rbc/WasitMeWasItNotMe" id="dc7b43d0-47c4-4077-8339-b264643ad639">
+      <con:settings/>
+      <con:parameters/>
+      <con:method name="Method 1" id="3ddff426-e830-4583-95ab-dc4f696fdc88" method="POST">
+        <con:settings/>
+        <con:parameters/>
+        <con:request name="Request 1" id="299cdb8e-036f-4df7-9223-5eacd0a3135c" mediaType="application/xml" postQueryString="false">
+          <con:settings>
+            <con:setting id="com.eviware.soapui.impl.wsdl.WsdlRequest@request-headers"><xml-fragment/></con:setting>
+          </con:settings>
+          <con:endpoint>https://mobile.sterbcroyalbank.com</con:endpoint>
+          <con:request>
+            <![CDATA[ <?xml version="1.0" encoding="UTF-8" standalone="yes"?> <ns2:RBCWTMRequest lang="en" origin="Secure Cloud Android" version="4.16" xmlns:ns2="http://rbc.mobile.com/rbc/signin/"> <Parameter key="0" value="RBC_AN"/> <Parameter key="1" value="4.16"/> <token></token> <user> <Identifier type="cardNumber">${#Project#CardNumber}</Identifier> </user> <ecats>
+<value>3mECAT%3D8PDx6tO9SXXL12btKp4KbkNaVRwCO5tLyeNIFCFJOsKvP1x3mmTbZpKLihjRIMs218ZqRR2Xe41sQTIKDHdTUdb970KmrNIPPD17dGH.wY3B%263mRMBR%3DON%3B</value>
+<timestamp>2021-02-02</timestamp> </ecats> <mobileDeviceIdentifiers> <uniqueDeviceID>4d9b153c78c18cd1</uniqueDeviceID> <devicePlatform>Android</devicePlatform>
+<deviceModel>SM-G900W8</deviceModel> <deviceOSVersion>6.0.1</deviceOSVersion> </mobileDeviceIdentifiers> <clientsResponse>true</clientsResponse> </ns2:RBCWTMRequest> ]]>
+          </con:request>
+          <con:originalUri>https://mobile.sterbcroyalbank.com/ip/service/rbc/WasitMeWasItNotMe</con:originalUri>
+          <con:credentials>
+            <con:selectedAuthProfile>No Authorization</con:selectedAuthProfile>
+            <con:authType>No Authorization</con:authType>
+          </con:credentials>
+          <con:jmsConfig JMSDeliveryMode="PERSISTENT"/>
+          <con:parameters/>
+        </con:request>
+      </con:method>
+    </con:resource>
+
+    <con:resource name="PVQValidation" path="/service/rbc/PVQValidation" id="3297dd48-4ffa-493a-9c60-85383978d064">
+      <con:settings/>
+      <con:parameters/>
+      <con:method name="PVQValidation" id="ae6fda43-85b5-4860-879a-45861cb61c93" method="POST">
+        <con:settings/>
+        <con:parameters/>
+        <con:representation type="REQUEST">
+          <con:mediaType>application/xml</con:mediaType>
+          <con:params/>
+          <con:element xmlns:sig="http://rbc.mobile.com/rbc/signin/">sig:RBCPVQRequest</con:element>
+        </con:representation>
+        <con:representation type="RESPONSE">
+          <con:mediaType>application/xml</con:mediaType>
+          <con:status>200</con:status>
+          <con:params/>
+          <con:element xmlns:sig="http://rbc.mobile.com/rbc/signin/">sig:RBCPVQResponse</con:element>
+        </con:representation>
+        <con:representation type="RESPONSE">
+          <con:mediaType>text/xml; charset=UTF-8</con:mediaType>
+          <con:status>200</con:status>
+          <con:params/>
+          <con:element xmlns:sig="http://rbc.mobile.com/rbc/signin/">sig:RBCPVQResponse</con:element>
+        </con:representation>
+        <con:representation type="FAULT">
+          <con:mediaType>text/html; charset=iso-8859-1</con:mediaType>
+          <con:status>400 502</con:status>
+          <con:params/>
+          <con:element>html</con:element>
+        </con:representation>
+        <con:representation type="FAULT">
+          <con:mediaType>text/html; charset=utf-8</con:mediaType>
+          <con:status>407</con:status>
+          <con:params/>
+          <con:element>html</con:element>
+        </con:representation>
+        <con:representation type="FAULT">
+          <con:mediaType>text/html; charset=utf-8</con:mediaType>
+          <con:status>404 503 408 500</con:status>
+          <con:params/>
+          <con:element>html</con:element>
+        </con:representation>
+        <con:representation type="FAULT">
+          <con:mediaType>text/html</con:mediaType>
+          <con:status>400</con:status>
+          <con:params/>
+          <con:element>p</con:element>
+        </con:representation>
+        <con:representation type="RESPONSE">
+          <con:mediaType xsi:nil="true"/>
+          <con:status>0</con:status>
+          <con:params/>
+          <con:element>data</con:element>
+        </con:representation>
+        <con:request name="Request 1" id="87bba735-b3ef-4d5d-92fd-91b79916a1eb" mediaType="application/json">
+          <con:settings/>
+          <con:endpoint>http://10.60.79.127:3129</con:endpoint>
+          <con:request/>
+          <con:credentials>
+            <con:selectedAuthProfile>No Authorization</con:selectedAuthProfile>
+            <con:authType>No Authorization</con:authType>
+          </con:credentials>
+          <con:jmsConfig JMSDeliveryMode="PERSISTENT"/>
+          <con:parameters/>
+        </con:request>
+      </con:method>
+    </con:resource>
+    
+  </con:interface>
+  
+  <con:interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="con:RestService" id="872e67cb-5fa0-41ea-9d5c-4ae6c40bc22c" name="PVQ Encrypt" type="rest_ex" wadlVersion="https://swagger.io/openapiv3/specification">
+    <con:settings/>
+    <con:endpoints>
+      <con:endpoint>https://crosswordencrypter.apps.cf2.devfg.rbc.com</con:endpoint>
+    </con:endpoints>
+    <con:resource name="encrypt" path="/api/crossword/v1/encrypt" id="281bb83d-d320-46ce-a798-e7b1269c849">
+      <con:settings/>
+      <con:parameters/>
+      <con:method name="Method 1" id="5002e31d-5994-4d9f-8a69-b765556c91a" method="GET">
+        <con:settings/>
+        <con:parameters/>
+        <con:request name="Request 1" id="74665d7-35ff-4cb2-b71d-fda7ce026a64e" mediaType="application/json">
+          <con:settings>
+            <con:setting id="com.eviware.soapui.impl.wsdl.WsdlRequest@request-headers">
+              <![CDATA[<xml-fragment xmlns:con="http://eviware.com/soapui/config">
+                <con:entry key="password" value="cccc"/>
+                <con:entry key="clientcard" value="4519921934811326"/>
+              </xml-fragment>]]>
+            </con:setting>
+          </con:settings>
+          <con:endpoint>https://crosswordencrypter.apps.cf2.devfg.rbc.com</con:endpoint>
+          <con:request/>
+          <con:originalUri>https://crosswordencrypter.apps.cf2.devfg.rbc.com/api/crossword/v1/encrypt</con:originalUri>
+          <con:credentials>
+            <con:selectedAuthProfile>No Authorization</con:selectedAuthProfile>
+            <con:authType>No Authorization</con:authType>
+          </con:credentials>
+          <con:jmsConfig JMSDeliveryMode="PERSISTENT"/>
+          <con:parameters/>
+        </con:request>
+      </con:method>
+    </con:resource>
+  </con:interface>
+  
+  <con:interface xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="con:RestService" id="69b8ecbf-6277-4829-8bdf-7d14eb5b6612" name="marketingofferservice-mqp0-mtls-dev.mtls.apps.cf2.devfg.rbc.com/secureapp/mqp0/contents/api/v1" type="rest_ex" wadlVersion="https://swagger.io/openapiv3/specification">
+    <con:settings/>
+    <con:endpoints>
+      <con:endpoint>https://mobilemarketingofferservice-mqp0-mtls-blue.mtls.apps.cf2.devfg.rbc.com/secureapp/mqp0/contents/api/v1</con:endpoint>
+      <con:endpoint>https://mobilemarketingofferservice-mqp0-mtls-dev.mtls.apps.cf2.devfg.rbc.com/secureapp/mqp0/contents/api/v1</con:endpoint>
+    </con:endpoints>
+    <con:resource name="getmarketingoffers" path="/getmarketingoffers" id="e793af2c-08c8-487c-9288-52e45da6ea1d">
+      <con:settings/>
+      <con:parameters/>
+      <con:method name="Method 1" id="79f51b0c-9ab5-4088-b14-768c7e2bcaf3" method="POST">
+        <con:settings/>
+        <con:parameters>
+          <con:parameter required="true">
+            <con:name>authorization</con:name>
+            <con:value/>
+            <con:style>HEADER</con:style>
+            <con:default/>
+          </con:parameter>
+          <con:parameter required="true">
+            <con:name>iv-user</con:name>
+            <con:value/>
+            <con:style>HEADER</con:style>
+            <con:default/>
+          </con:parameter>
+          <con:parameter required="true">
+            <con:name>activeid</con:name>
+            <con:value/>
+            <con:style>HEADER</con:style>
+            <con:default/>
+          </con:parameter>
+          <con:parameter required="true">
+            <con:name>print-session-id</con:name>
+            <con:value/>
+            <con:style>HEADER</con:style>
+            <con:default/>
+          </con:parameter>
+        </con:parameters>
+        <con:request name="Request 1" id="a0fac1c6-d300-4b60-859b-9e8cee289c4b" mediaType="application/json" postQueryString="false">
+          <con:settings>
+            <con:setting id="com.eviware.soapui.impl.wsdl.WsdlRequest@request-headers"><xml-fragment/></con:setting>
+          </con:settings>
+          <con:endpoint>https://mobilemarketingofferservice-mqp0-mtls-dev.mtls.apps.cf2.devfg.rbc.com/secureapp/mqp0/contents/api/v1</con:endpoint>
+          <con:request>{ "fromPageName": "HOME", "channel": "MOBILE", "language": "EN", "clientSegment": "PERSONAL", "appVersion": "6.22", "deviceResolution": "high", "osVersion": "12.0", "apiVersion": "1", "shopping": 1, "hasEligibleCpc": true }</con:request>
+          <con:originalUri>https://mobilemarketingofferservice-mqp0-mtls-dev.mtls.apps.cf2.devfg.rbc.com/secureapp/mqp0/contents/api/v1/getmarketingoffers</con:originalUri>
+          <con:credentials>
+            <con:selectedAuthProfile>No Authorization</con:selectedAuthProfile>
+            <con:authType>No Authorization</con:authType>
+          </con:credentials>
+          <con:jmsConfig JMSDeliveryMode="PERSISTENT"/>
+          <con:parameters/>
+        </con:request>
+      </con:method>
+    </con:resource>
+  </con:interface>
+  
+  <!-- TestSuites will be added here -->
+
+  <con:testSuite id="01e92093-e54d-49e7-98e9-d49828721d1a" name="LibraryFunctions" disabled="true">
+    <con:settings/>
+    <con:savedRecentRuns>1</con:savedRecentRuns>
+    <con:runType>SEQUENTIAL</con:runType>
+    <con:testCase id="87d8ad75-871f-4d0c-88f4-df86acfd7733" discardOkResults="true" failOnError="true" failTestCaseOnErrors="true" keepSession="false" maxResults="0" name="SetupScriptlibrary" searchProperties="true" timeout="0">
+      <con:settings/>
+      <con:savedRecentRuns>1</con:savedRecentRuns>
+      <con:testStep type="groovy" name="SetupScriptLibrary" id="e36e5a03-500f-4a24-9fd2-8fbb7bfcca02">
+        <con:settings/>
+        <con:config>
+          <script>testRunner.testCase.testSuite.project.scriptLibrary = testRunner.testCase.testSuite.project.getFunctionLibrary()</script>
+        </con:config>
+      </con:testStep>
+      <con:properties/>
+      <con:reportParameters/>
+    </con:testCase>
+    
+    <con:testCase id="e66dbcb-3e34-4861-b276-edcf78a53e03" discardOkResults="true" failOnError="false" failTestCaseOnErrors="true" keepSession="false" maxResults="0" name="UpdateResultsInQc" searchProperties="true" timeout="0" disabled="true" wsrmEnabled="false" wsrmVersion="1.0" wsrmAUTHORIZation="false" amfEndpoint="" amfLogin="" amfPassword="" zephyrTestName="" zephyrTestId="">
+      <con:settings/>
+      <con:savedRecentRuns>1</con:savedRecentRuns>
+      <con:testStep type="groovy" name="initStep" id="737ce3ce-5943-4511-996d-9d40375fae7f">
+        <con:settings/>
+        <con:config>
+          <script>def RT = new soapui_utils.FunctionLibrary(log, context, testRunner) 
+def env = testRunner.testCase.testSuite.project.getPropertyValue("env") 
+def FileStream = RT.CreateLogFile("TDE REGRESSION " + env) 
+def fileStreamQc = RT.CreateLogFile("", "HPQC_Results.CSV") 
+def groovyUtils = new com.eviware.soapui.support.GroovyUtils(context) 
+def componentName = context.expand('${#TestCase#componentName}') 
+if (testRunner.testCase.testSuite.project.getPropertyValue('TriggerHPALM') != "true") { 
+  testRunner.cancel('Bypass HP ALM Update') 
+  return null 
+} 
+fileStreamQc.renameTo(groovyUtils.projectPath + "\\TestResult\\" + componentName + '.csv')</script>
+        </con:config>
+      </con:testStep>
+      <con:testStep type="datasource" name="DataSourceXL" id="811cd18e-4721-4e13-b8c1-3cd2698108cc">
+        <con:settings/>
+        <con:config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="con:DataSourceStep">
+          <con:dataSource type="File">
+            <con:configuration>
+              <fileName>${projectDir}/TestResult/HPQC_Results.CSV</fileName>
+              <separator>,</separator>
+              <trim>true</trim>
+              <charset>Cp1252</charset>
+              <quotedValues>false</quotedValues>
+            </con:configuration>
+          </con:dataSource>
+          <con:shared>true</con:shared>
+          <con:restartShared>true</con:restartShared>
+          <con:property>TestId</con:property>
+          <con:property>Result</con:property>
+          <con:property>TestSetId</con:property>
+          <con:startRow/>
+          <con:endRow/>
+          <con:recordsPerIteration>1</con:recordsPerIteration>
+          <con:completeLastOperation>true</con:completeLastOperation>
+          <con:gotoLoopOnEmpty>false</con:gotoLoopOnEmpty>
+          <con:trimValues>false</con:trimValues>
+          <con:entitizeValues>false</con:entitizeValues>
+          <con:restartOnRun>true</con:restartOnRun>
+        </con:config>
+      </con:testStep>
+    </con:testCase>
+  </con:testSuite>
+
+  <!-- Project Properties will be added here -->
+
+  <con:properties>
+    <con:property>
+      <con:name>env</con:name>
+      <con:value>IST0</con:value>
+    </con:property>
+    <con:property>
+      <con:name>CardNumber</con:name>
+      <con:value>4519922640766765</con:value>
+    </con:property>
+    <con:property>
+      <con:name>mobile_app_device_iOS</con:name>
+      <con:value>RBC_RWD Android</con:value>
+    </con:property>
+    <con:property>
+      <con:name>mobile_app_version_iOS</con:name>
+      <con:value>4.0</con:value>
+    </con:property>
+    <con:property>
+      <con:name>mobile_app_origin</con:name>
+      <con:value>iPhone 13.3</con:value>
+    </con:property>
+    <con:property>
+      <con:name>user_pwd</con:name>
+      <con:value>discovery</con:value>
+    </con:property>
+    <con:property>
+      <con:name>lob</con:name>
+      <con:value>OLB</con:value>
+    </con:property>
+    <con:property>
+      <con:name>today</con:name>
+      <con:value>2022-01-18</con:value>
+    </con:property>
+    <con:property>
+      <con:name>JSESSIONID</con:name>
+      <con:value>JSESSIONID=E5CBF33BFD9020E5E9D356334D6F7AEF</con:value>
+    </con:property>
+    <con:property>
+      <con:name>mfaSessionId</con:name>
+      <con:value>81637667-cb5c-4ff6-8542-6d9735b0de78</con:value>
+    </con:property>
+    <con:property>
+      <con:name>mfaOAuthToken</con:name>
+      <con:value>eyJhbGciOiJSUZIZCI6IKSHSUwxUDI0bE5n0G9aVFpTOUNWSHhiWXc0bjlicEtuIiwiOKoRMEUvoG2SPXN_t4kch6q3bg2evk2D-Fuyxve_tCEFISpT0raePighoel</con:value>
+    </con:property>
+    <con:property>
+      <con:name>pvqAnswer</con:name>
+      <con:value>aaaa</con:value>
+    </con:property>
+    <con:property>
+      <con:name>mfaChallengeId</con:name>
+      <con:value>70b09989-9457-4716-a3af-a95e773ca16</con:value>
+    </con:property>
+    <con:property>
+      <con:name>pvqEnvironment</con:name>
+      <con:value/>
+    </con:property>
+    <con:property>
+      <con:name>pvqEncryptedAnswer</con:name>
+      <con:value>8,eyIRIjpbWzQsIjk2YjY3MzgyMmIyZDIwYWEyMWVKNzgwOTc2MDQ2M20QwYTVmZTh</con:value>
+    </con:property>
+    <con:property>
+      <con:name>mfaToken</con:name>
+      <con:value>b0a0d212-6980-42f4-8a1d-6662a1d1c831</con:value>
+    </con:property>
+    <con:property>
+      <con:name>MobiliserDEV11</con:name>
+      <con:value>https://mobiledev1.sterbcroyalbank.com</con:value>
+    </con:property>
+    <con:property>
+      <con:name>user_pwd_original</con:name>
+      <con:value>discovery</con:value>
+    </con:property>
+    <con:property>
+      <con:name>endpoint_IST0</con:name>
+      <con:value>https://mobile.sterbcroyalbank.com/ip</con:value>
+    </con:property>
+    <con:property>
+      <con:name>card_list_IST0</con:name>
+      <con:value>4519227552057665, 4519033055677256, discovery, 4519033065463348, 4519922558025126</con:value>
+    </con:property>
+    <con:property>
+      <con:name>mobile_app_device</con:name>
+      <con:value>RBC_iPhone</con:value>
+    </con:property>
+    <con:property>
+      <con:name>mobile_app_version</con:name>
+      <con:value>6.21</con:value>
+    </con:property>
+    <con:property>
+      <con:name>MobiliserIST0</con:name>
+      <con:value>https://mobile.sterbcroyalbank.com/ip</con:value>
+    </con:property>
+    <con:property>
+      <con:name>token</con:name>
+      <con:value>null</con:value>
+    </con:property>
+    <con:property>
+      <con:name>PVQ1</con:name>
+      <con:value>aaaa?</con:value>
+    </con:property>
+    <con:property>
+      <con:name>PVQ2</con:name>
+      <con:value>bbbb?</con:value>
+    </con:property>
+    <con:property>
+      <con:name>PVQ3</con:name>
+      <con:value>cccc?</con:value>
+    </con:property>
+    <con:property>
+      <con:name>PVQAnswer1</con:name>
+      <con:value>1,APPLCRSOFT1-0000e019MNO3E5F752E5F3842180135F2565BB8105,9489ADB52099D80E913FCA8021175E9A25E07718E5DFEA152B5B50C05EAB43</con:value>
+    </con:property>
+    <con:property>
+      <con:name>PVQAnswer2</con:name>
+      <con:value>1,APPLCRSOFT1-0000e0193D03E5F752E5F3842180135F2565BB8105,06E67190ECE85AEEA1558CAFE176065085C6DEE</con:value>
+    </con:property>
+    <con:property>
+      <con:name>PVQAnswer3</con:name>
+      <con:value>1,APPLCRSOFT1-0000e0193DB5718DF1G9979D08375780F2565BB8105,2022920F0FAACDF8710051AA0015745607941AC57CECB2607EB58EB152B5B50C05EAB43</con:value>
+    </con:property>
+    <con:property>
+      <con:name>DebugVal</con:name>
+      <con:value>0</con:value>
+    </con:property>
+    <con:property>
+      <con:name>ecats</con:name>
+      <con:value>3mECAT%3D8PDx6tO9SXXL12btKp4KbkNaVRwCO5tLyeNIFCFJOsKvP1x3mmTbZpKLihjRIMs218ZqRR2Xe41sQTIKDHdTUdb970KmrNIPPD17dGH.wY3B%3B%20</con:value>
+    </con:property>
+    <con:property>
+      <con:name>LogFileName</con:name>
+      <con:value>REGRESSION_1570-2022-11-16-160539.csv</con:value>
+    </con:property>
+  </con:properties>
+</con:soapui-project> 

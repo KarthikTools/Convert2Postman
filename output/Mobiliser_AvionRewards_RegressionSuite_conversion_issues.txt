@@ -1,0 +1,6 @@
+ReadyAPI to Postman Conversion Issues
+=====================================
+
+1. No REST requests found in test case: SetupScriptLibrary
+2. No REST requests found in test case: TestTemplate
+3. Unsupported test step type: groovy for step: FunctionLibrary in test case: TestTemplate
