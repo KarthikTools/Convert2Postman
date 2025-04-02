@@ -44,5 +44,6 @@ build/
 ehthumbs.db
 Thumbs.db
 
-# Output directory
+# Project specific directories
 output/
+input/
