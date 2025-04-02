@@ -203,4 +203,83 @@ public class ScriptConverter {
         
         return wrapped.toString();
     }
+
+    /**
+     * Convert a Groovy script to JavaScript.
+     * 
+     * @param groovyScript The Groovy script to convert
+     * @return The converted JavaScript
+     */
+    public String convertGroovyToJavaScript(String groovyScript) {
+        if (groovyScript == null || groovyScript.trim().isEmpty()) {
+            return "";
+        }
+        
+        // Create JavaScript version
+        String jsScript = groovyScript;
+        
+        // Convert Groovy syntax to JavaScript
+        jsScript = jsScript.replaceAll("def\\s+([a-zA-Z0-9_]+)\\s*=", "let $1 =");
+        jsScript = jsScript.replaceAll("def\\s+([a-zA-Z0-9_]+)", "let $1");
+        jsScript = jsScript.replaceAll("assert\\s+", "pm.expect");
+        jsScript = jsScript.replaceAll("\\.collect\\s*\\{\\s*\\}\\s*\\.join\\(\\s*\"\\s*\"\\s*\\)", ".join(\"\")");
+        jsScript = jsScript.replaceAll("println", "console.log");
+        jsScript = jsScript.replaceAll("log\\.info", "console.info");
+        jsScript = jsScript.replaceAll("log\\.error", "console.error");
+        jsScript = jsScript.replaceAll("log\\.warn", "console.warn");
+        jsScript = jsScript.replaceAll("log\\.debug", "console.debug");
+        
+        // Convert property access
+        jsScript = jsScript.replaceAll("context\\.expand\\s*\\(\\s*\\$\\{([^}]+)\\}\\s*\\)", "pm.variables.get(\"$1\")");
+        jsScript = jsScript.replaceAll("testRunner\\.testCase\\.testSuite\\.project\\.getPropertyValue\\(\\s*\"([^\"]*)\"\\s*\\)", "pm.environment.get(\"$1\")");
+        jsScript = jsScript.replaceAll("testRunner\\.testCase\\.getPropertyValue\\(\\s*\"([^\"]*)\"\\s*\\)", "pm.variables.get(\"$1\")");
+        
+        // Convert ReadyAPI-specific functions to Postman equivalents
+        jsScript = convertReadyApiFunctions(jsScript);
+        
+        return jsScript;
+    }
+    
+    /**
+     * Convert ReadyAPI-specific functions to Postman equivalents.
+     * 
+     * @param script The script to convert
+     * @return The converted script
+     */
+    private String convertReadyApiFunctions(String script) {
+        // Handle specific ReadyAPI function patterns
+        
+        // Handle environment type functions 
+        script = script.replaceAll("testRunner\\.testCase\\.testSuite\\.project\\.setPropertyValue\\(\\s*\"([^\"]*)\",\\s*([^\\)]+)\\)", 
+                                  "pm.environment.set(\"$1\", $2)");
+        
+        // Special handling for FunctionLibrary references
+        if (script.contains("FunctionLibrary")) {
+            // Add header comment explaining Function Library usage in Postman
+            String functionLibraryComment = "\n// NOTE: ReadyAPI FunctionLibrary needs to be re-implemented in Postman\n" +
+                  "// The code below assumes you've created a collection variable called 'FunctionLibrary'\n" +
+                  "// containing a JSON representation of your utility functions.\n" +
+                  "// See the converted collection documentation for more details.\n";
+            script = functionLibraryComment + script;
+            
+            // Replace CreateLogFile and other common library functions with Postman equivalents
+            script = script.replaceAll("CreateLogFile\\(\\s*\"([^\"]*)\",\\s*([^\\)]+)\\)", 
+                                      "/* CreateLogFile is replaced with Postman logging */\nconsole.log(\"Test execution started\")\n");
+            
+            // Replace MobiliserEnvType with environment variable
+            script = script.replaceAll("MobiliserEnvType\\(\\s*\\)", "pm.environment.get(\"environment\")");
+        }
+        
+        // Handle dynamic environment-specific settings
+        if (script.contains("MobiliserEnvType()") || script.contains("env")) {
+            // Convert environment checks
+            script = script.replaceAll("if\\s*\\(\\s*([^\\)]+)\\.MobiliserEnvType\\(\\s*\\)\\s*==\\s*\"([^\"]*)\"\\s*\\)", 
+                                      "if (pm.environment.get(\"environment\") === \"$2\")");
+            
+            script = script.replaceAll("if\\s*\\(\\s*([^\\)]+)\\s*==\\s*\"([^\"]*)\"\\s*\\)", 
+                                      "if (pm.environment.get(\"environment\") === \"$2\")");
+        }
+        
+        return script;
+    }
 } 

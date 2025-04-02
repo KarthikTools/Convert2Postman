@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.nio.file.Paths;
+import java.io.FileWriter;
 
 /**
  * Main class for converting ReadyAPI projects to Postman collections.
@@ -104,11 +105,83 @@ public class ReadyApiToPostmanConverter {
                 System.out.println("Postman collection validation failed. See logs for details.");
             }
             
-            System.out.println("Conversion completed successfully!");
+            // Create a README file with information about function libraries
+            createReadmeFile(outputDir, collection);
             
+            System.out.println("Conversion completed successfully! Files written to " + outputDir.getAbsolutePath());
+            System.out.println("Collection file: " + collectionFile);
+            System.out.println("Environment file: " + environmentFile);
+            
+            return;
         } catch (Exception e) {
             System.err.println("Error during conversion: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Create a README file with conversion information and instructions
+     * 
+     * @param outputDir The output directory
+     * @param collection The Postman collection
+     */
+    private void createReadmeFile(File outputDir, PostmanCollection collection) {
+        try {
+            File readmeFile = new File(outputDir, collection.getInfo().getName() + "_README.md");
+            
+            try (FileWriter writer = new FileWriter(readmeFile)) {
+                writer.write("# " + collection.getInfo().getName() + " - Converted from ReadyAPI\n\n");
+                
+                writer.write("## About This Collection\n\n");
+                writer.write("This Postman collection was automatically converted from a ReadyAPI project using " +
+                            "the ReadyAPI to Postman Converter tool.\n\n");
+                
+                writer.write("## Function Library\n\n");
+                writer.write("ReadyAPI projects often use function libraries (Groovy scripts) to provide reusable " +
+                            "functionality across test cases. In Postman, these have been converted to JavaScript " +
+                            "and are included as a collection variable called `FunctionLibrary`.\n\n");
+                
+                writer.write("### Using Functions in Postman\n\n");
+                writer.write("To use functions from the Function Library in your Postman scripts:\n\n");
+                
+                writer.write("```javascript\n");
+                writer.write("// Get the function library\n");
+                writer.write("const RT = JSON.parse(pm.collectionVariables.get('FunctionLibrary'));\n\n");
+                
+                writer.write("// Use functions from the library\n");
+                writer.write("const environment = RT.getEnvironmentType();\n");
+                writer.write("RT.logInfo(`Running in ${environment} environment`);\n");
+                writer.write("```\n\n");
+                
+                writer.write("### Available Functions\n\n");
+                writer.write("The following functions are available in the library:\n\n");
+                
+                writer.write("- `getEnvironmentType()` - Returns the current environment (DEV, SIT, UAT)\n");
+                writer.write("- `logInfo(message)` - Logs an informational message to the console\n");
+                writer.write("- `createLogFile(prefix, filename)` - Simulates log file creation (logs to console in Postman)\n\n");
+                
+                writer.write("## Environment-Specific Configuration\n\n");
+                writer.write("The original ReadyAPI project contained environment-specific settings that have been " +
+                            "converted to Postman environment variables. Make sure to select the correct environment " +
+                            "before running the tests.\n\n");
+                
+                writer.write("## Known Limitations\n\n");
+                writer.write("1. Some ReadyAPI features don't have direct equivalents in Postman and have been simulated:\n");
+                writer.write("   - File operations - Simulated with console logging\n");
+                writer.write("   - Database connections - Need to be implemented using Postman's HTTP requests\n");
+                writer.write("   - Complex Groovy expressions - May require manual review\n\n");
+                
+                writer.write("2. Test execution is not directly comparable to ReadyAPI:\n");
+                writer.write("   - ReadyAPI's test case and test suite structure is represented as folders in Postman\n");
+                writer.write("   - Data sources are implemented as environment variables or collection variables\n\n");
+                
+                writer.write("## Contact\n\n");
+                writer.write("If you encounter any issues with the converted collection, please contact your API team.\n");
+            }
+            
+            // logger.info("Created README file: {}", readmeFile.getPath());
+        } catch (IOException e) {
+            // logger.error("Error creating README file", e);
         }
     }
     
