@@ -7,6 +7,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.net.URL;
+import java.net.MalformedURLException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -539,5 +544,273 @@ public class PostmanCollectionBuilder {
      */
     public List<String> getConversionIssues() {
         return conversionIssues;
+    }
+
+    private PostmanItem createItemFromTestStep(ReadyApiTestStep testStep) {
+        PostmanItem item = new PostmanItem();
+        item.setName(testStep.getName());
+        
+        if (testStep.getRequest() != null) {
+            // Create Postman request from ReadyAPI request
+            PostmanRequest postmanRequest = new PostmanRequest();
+            postmanRequest.setMethod(testStep.getRequest().getMethod());
+            
+            // Setup URL
+            PostmanRequest.PostmanUrl url = new PostmanRequest.PostmanUrl();
+            String endpoint = testStep.getRequest().getEndpoint();
+            
+            // Convert any ReadyAPI variables in the endpoint to Postman variables
+            endpoint = convertReadyApiVariablesToPostman(endpoint);
+            
+            url.setRaw(endpoint);
+            
+            // Parse URL and extract host, path, query params
+            parseUrl(endpoint, url);
+            
+            // Setup headers
+            List<PostmanRequest.PostmanHeader> headers = new ArrayList<>();
+            for (Map.Entry<String, String> header : testStep.getRequest().getHeaders().entrySet()) {
+                PostmanRequest.PostmanHeader postmanHeader = new PostmanRequest.PostmanHeader();
+                postmanHeader.setKey(header.getKey());
+                postmanHeader.setValue(convertReadyApiVariablesToPostman(header.getValue()));
+                headers.add(postmanHeader);
+            }
+            postmanRequest.setHeader(headers);
+            
+            // Setup request body
+            if (testStep.getRequest().getBody() != null && !testStep.getRequest().getBody().isEmpty()) {
+                PostmanRequest.PostmanBody body = new PostmanRequest.PostmanBody();
+                PostmanRequest.PostmanBody.PostmanBodyOptions options = new PostmanRequest.PostmanBody.PostmanBodyOptions();
+                
+                String contentType = testStep.getRequest().getContentType();
+                if (contentType == null || contentType.isEmpty() || 
+                    contentType.contains("json") || 
+                    contentType.contains("text") || 
+                    contentType.contains("xml")) {
+                    
+                    body.setMode("raw");
+                    String rawBody = testStep.getRequest().getBody();
+                    
+                    // Convert ReadyAPI variables in the body to Postman variables
+                    rawBody = convertReadyApiVariablesToPostman(rawBody);
+                    
+                    body.setRaw(rawBody);
+                    
+                    PostmanRequest.PostmanBody.PostmanBodyOptions.PostmanRawOptions rawOptions = 
+                        new PostmanRequest.PostmanBody.PostmanBodyOptions.PostmanRawOptions();
+                    
+                    if (contentType != null && contentType.contains("json")) {
+                        rawOptions.setLanguage("json");
+                    } else if (contentType != null && contentType.contains("xml")) {
+                        rawOptions.setLanguage("xml");
+                    } else {
+                        rawOptions.setLanguage("text");
+                    }
+                    
+                    options.setRaw(rawOptions);
+                    body.setOptions(options);
+                } else if (contentType.contains("form") || contentType.contains("urlencoded")) {
+                    body.setMode("urlencoded");
+                    // Handle form data
+                    // TODO: Implement form data conversion
+                }
+                
+                postmanRequest.setBody(body);
+            }
+            
+            postmanRequest.setUrl(url);
+            item.setRequest(postmanRequest);
+        } else {
+            // For non-request test steps, create a dummy request
+            PostmanRequest dummyRequest = new PostmanRequest();
+            dummyRequest.setMethod("GET");
+            
+            PostmanRequest.PostmanUrl url = new PostmanRequest.PostmanUrl();
+            url.setRaw("http://example.com/" + testStep.getName().replaceAll("\\s+", "-"));
+            url.setProtocol("http");
+            url.setHost(Arrays.asList("example", "com"));
+            url.setPath(Arrays.asList(testStep.getName().replaceAll("\\s+", "-")));
+            
+            dummyRequest.setUrl(url);
+            item.setRequest(dummyRequest);
+        }
+        
+        // Add pre-request script if needed
+        addPreRequestScript(item, testStep);
+        
+        // Add test script if needed
+        addTestScript(item, testStep);
+        
+        return item;
+    }
+    
+    /**
+     * Convert ReadyAPI variable syntax ${VariableName} to Postman variable syntax {{VariableName}}
+     * 
+     * @param input The input string with ReadyAPI variable syntax
+     * @return The string with Postman variable syntax
+     */
+    private String convertReadyApiVariablesToPostman(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        
+        // Handle ${VariableName} syntax 
+        String result = input.replaceAll("\\$\\{([^}]+)\\}", "{{$1}}");
+        
+        // Handle XPath variable references
+        Pattern xpathPattern = Pattern.compile("\\$\\([^)]+\\)");
+        Matcher matcher = xpathPattern.matcher(result);
+        StringBuffer sb = new StringBuffer();
+        
+        while (matcher.find()) {
+            // For XPath expressions, we'll use a variable with a similar name
+            String match = matcher.group();
+            String varName = "xpathVar_" + Math.abs(match.hashCode());
+            conversionIssues.add("XPath expression " + match + " was converted to a Postman variable {{" + varName + "}}. " +
+                                "You may need to set this variable in your pre-request script.");
+            matcher.appendReplacement(sb, "{{" + varName + "}}");
+        }
+        matcher.appendTail(sb);
+        result = sb.toString();
+        
+        // Handle property expansion with context.expand
+        result = result.replaceAll("context\\.expand\\(\\s*'([^']+)'\\s*\\)", "{{$1}}");
+        result = result.replaceAll("context\\.expand\\(\\s*\"([^\"]+)\"\\s*\\)", "{{$1}}");
+        
+        return result;
+    }
+    
+    /**
+     * Parse a URL into its components.
+     * 
+     * @param endpoint The URL endpoint
+     * @param url The PostmanUrl to populate
+     */
+    private void parseUrl(String endpoint, PostmanRequest.PostmanUrl url) {
+        try {
+            URL parsedUrl = new URL(endpoint);
+            
+            url.setProtocol(parsedUrl.getProtocol());
+            
+            // Split host by dots
+            String host = parsedUrl.getHost();
+            if (host != null && !host.isEmpty()) {
+                url.setHost(Arrays.asList(host.split("\\.")));
+            }
+            
+            // Split path by slashes, removing empty elements
+            String path = parsedUrl.getPath();
+            if (path != null && !path.isEmpty()) {
+                List<String> pathParts = new ArrayList<>();
+                for (String part : path.split("/")) {
+                    if (!part.isEmpty()) {
+                        pathParts.add(part);
+                    }
+                }
+                if (!pathParts.isEmpty()) {
+                    url.setPath(pathParts);
+                }
+            }
+            
+            // Extract query parameters
+            String query = parsedUrl.getQuery();
+            if (query != null && !query.isEmpty()) {
+                List<PostmanRequest.PostmanUrl.PostmanQueryParam> queryParams = new ArrayList<>();
+                
+                String[] params = query.split("&");
+                for (String param : params) {
+                    String[] keyValue = param.split("=", 2);
+                    PostmanRequest.PostmanUrl.PostmanQueryParam queryParam = new PostmanRequest.PostmanUrl.PostmanQueryParam();
+                    queryParam.setKey(keyValue[0]);
+                    if (keyValue.length > 1) {
+                        queryParam.setValue(convertReadyApiVariablesToPostman(keyValue[1]));
+                    } else {
+                        queryParam.setValue("");
+                    }
+                    queryParams.add(queryParam);
+                }
+                
+                url.setQuery(queryParams);
+            }
+            
+            // Extract port if non-standard
+            int port = parsedUrl.getPort();
+            if (port != -1) {
+                url.setPort(String.valueOf(port));
+            }
+            
+        } catch (MalformedURLException e) {
+            // For malformed URLs, just keep the raw URL
+            conversionIssues.add("Could not parse URL: " + endpoint + ". Error: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Add a pre-request script to a Postman item.
+     * 
+     * @param item The Postman item
+     * @param testStep The ReadyAPI test step
+     */
+    private void addPreRequestScript(PostmanItem item, ReadyApiTestStep testStep) {
+        // Add pre-request script if this is a script step meant for pre-request
+        if ("groovy".equalsIgnoreCase(testStep.getType()) && 
+            (testStep.getName().toLowerCase().contains("setup") || 
+             testStep.getName().toLowerCase().contains("prerequest") || 
+             testStep.getName().toLowerCase().contains("pre-request"))) {
+            
+            String scriptContent = testStep.convertGroovyToJavaScript();
+            if (!scriptContent.isEmpty()) {
+                PostmanEvent preRequestEvent = new PostmanEvent();
+                preRequestEvent.setListen("prerequest");
+                
+                PostmanEvent.PostmanScript script = new PostmanEvent.PostmanScript();
+                script.setType("text/javascript");
+                script.setExec(Arrays.asList(scriptContent.split("\n")));
+                
+                preRequestEvent.setScript(script);
+                
+                if (item.getEvent() == null) {
+                    item.setEvent(new ArrayList<>());
+                }
+                item.getEvent().add(preRequestEvent);
+            }
+        }
+    }
+    
+    /**
+     * Add a test script to a Postman item.
+     * 
+     * @param item The Postman item
+     * @param testStep The ReadyAPI test step
+     */
+    private void addTestScript(PostmanItem item, ReadyApiTestStep testStep) {
+        // Check if this is a script step or property transfer
+        if (("groovy".equalsIgnoreCase(testStep.getType()) && 
+             !testStep.getName().toLowerCase().contains("prerequest") && 
+             !testStep.getName().toLowerCase().contains("pre-request") && 
+             !testStep.getName().toLowerCase().contains("setup")) ||
+            "propertytransfer".equalsIgnoreCase(testStep.getType()) ||
+            "datasourceloop".equalsIgnoreCase(testStep.getType()) ||
+            "datasink".equalsIgnoreCase(testStep.getType()) ||
+            "properties".equalsIgnoreCase(testStep.getType())) {
+            
+            String scriptContent = testStep.toJavaScript();
+            if (!scriptContent.isEmpty()) {
+                PostmanEvent testEvent = new PostmanEvent();
+                testEvent.setListen("test");
+                
+                PostmanEvent.PostmanScript script = new PostmanEvent.PostmanScript();
+                script.setType("text/javascript");
+                script.setExec(Arrays.asList(scriptContent.split("\n")));
+                
+                testEvent.setScript(script);
+                
+                if (item.getEvent() == null) {
+                    item.setEvent(new ArrayList<>());
+                }
+                item.getEvent().add(testEvent);
+            }
+        }
     }
 } 

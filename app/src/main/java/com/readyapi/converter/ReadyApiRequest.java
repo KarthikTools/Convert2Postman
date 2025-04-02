@@ -18,6 +18,9 @@ public class ReadyApiRequest {
     private Map<String, String> queryParameters = new HashMap<>();
     private Map<String, String> pathParameters = new HashMap<>();
     private List<ReadyApiAssertion> assertions = new ArrayList<>();
+    private String method;
+    private String body;
+    private String contentType;
     
     public String getId() {
         return id;
@@ -107,6 +110,54 @@ public class ReadyApiRequest {
         this.assertions.add(assertion);
     }
     
+    public String getMethod() {
+        return method;
+    }
+    
+    public void setMethod(String method) {
+        this.method = method;
+    }
+    
+    public String getBody() {
+        return body;
+    }
+    
+    public void setBody(String body) {
+        this.body = body;
+    }
+    
+    public String getContentType() {
+        return contentType;
+    }
+    
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
+    
+    public Map<String, String> getHeaders() {
+        return requestHeaders;
+    }
+    
+    public void setHeaders(Map<String, String> headers) {
+        this.requestHeaders = headers;
+    }
+    
+    public void addHeader(String name, String value) {
+        this.requestHeaders.put(name, value);
+    }
+    
+    public Map<String, String> getQueryParams() {
+        return queryParameters;
+    }
+    
+    public void setQueryParams(Map<String, String> queryParams) {
+        this.queryParameters = queryParams;
+    }
+    
+    public void addQueryParam(String name, String value) {
+        this.queryParameters.put(name, value);
+    }
+    
     @Override
     public String toString() {
         return "ReadyApiRequest{" +
@@ -114,6 +165,8 @@ public class ReadyApiRequest {
                 ", name='" + name + '\'' +
                 ", mediaType='" + mediaType + '\'' +
                 ", endpoint='" + endpoint + '\'' +
+                ", method='" + method + '\'' +
+                ", contentType='" + contentType + '\'' +
                 ", headers=" + requestHeaders.size() +
                 ", queryParams=" + queryParameters.size() +
                 ", pathParams=" + pathParameters.size() +

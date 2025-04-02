@@ -224,9 +224,10 @@ public class PostmanRequest {
     public static class PostmanUrl {
         private String raw;
         private String protocol;
-        private List<String> host;
-        private List<String> path;
-        private List<PostmanQueryParam> query;
+        private List<String> host = new ArrayList<>();
+        private List<String> path = new ArrayList<>();
+        private List<PostmanQueryParam> query = new ArrayList<>();
+        private String port;
         
         public String getRaw() {
             return raw;
@@ -244,7 +245,6 @@ public class PostmanRequest {
             this.protocol = protocol;
         }
         
-        @JsonProperty("host")
         public List<String> getHost() {
             return host;
         }
@@ -253,7 +253,6 @@ public class PostmanRequest {
             this.host = host;
         }
         
-        @JsonProperty("path")
         public List<String> getPath() {
             return path;
         }
@@ -262,13 +261,20 @@ public class PostmanRequest {
             this.path = path;
         }
         
-        @JsonProperty("query")
         public List<PostmanQueryParam> getQuery() {
             return query;
         }
         
         public void setQuery(List<PostmanQueryParam> query) {
             this.query = query;
+        }
+        
+        public String getPort() {
+            return port;
+        }
+        
+        public void setPort(String port) {
+            this.port = port;
         }
         
         public void addQueryParam(String key, String value) {
