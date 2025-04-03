@@ -11,8 +11,13 @@ import java.util.Map;
 public class ReadyApiTestCase {
     private String id;
     private String name;
-    private Map<String, String> properties = new HashMap<>();
-    private List<ReadyApiTestStep> testSteps = new ArrayList<>();
+    private Map<String, String> properties;
+    private List<ReadyApiTestStep> testSteps;
+    
+    public ReadyApiTestCase() {
+        this.properties = new HashMap<>();
+        this.testSteps = new ArrayList<>();
+    }
     
     public String getId() {
         return id;

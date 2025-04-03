@@ -9,69 +9,49 @@ import java.util.List;
 public class ReadyApiInterface {
     private String id;
     private String name;
-    private String type;
-    private List<String> endpoints = new ArrayList<>();
-    private List<ReadyApiResource> resources = new ArrayList<>();
-    
-    public String getId() {
-        return id;
+    private String description;
+    private List<ReadyApiResource> resources;
+
+    public ReadyApiInterface() {
+        this.resources = new ArrayList<>();
     }
-    
+
     public void setId(String id) {
         this.id = id;
     }
-    
-    public String getName() {
-        return name;
+
+    public String getId() {
+        return id;
     }
-    
+
     public void setName(String name) {
         this.name = name;
     }
-    
-    public String getType() {
-        return type;
+
+    public String getName() {
+        return name;
     }
-    
-    public void setType(String type) {
-        this.type = type;
+
+    public void setDescription(String description) {
+        this.description = description;
     }
-    
-    public List<String> getEndpoints() {
-        return endpoints;
+
+    public String getDescription() {
+        return description;
     }
-    
-    public void setEndpoints(List<String> endpoints) {
-        this.endpoints = endpoints;
-    }
-    
-    public void addEndpoint(String endpoint) {
-        this.endpoints.add(endpoint);
-    }
-    
-    public String getDefaultEndpoint() {
-        return endpoints.isEmpty() ? "" : endpoints.get(0);
-    }
-    
-    public List<ReadyApiResource> getResources() {
-        return resources;
-    }
-    
-    public void setResources(List<ReadyApiResource> resources) {
-        this.resources = resources;
-    }
-    
+
     public void addResource(ReadyApiResource resource) {
         this.resources.add(resource);
     }
-    
+
+    public List<ReadyApiResource> getResources() {
+        return resources;
+    }
+
     @Override
     public String toString() {
         return "ReadyApiInterface{" +
-                "id='" + id + '\'' +
-                ", name='" + name + '\'' +
-                ", type='" + type + '\'' +
-                ", endpoints=" + endpoints +
+                "name='" + name + '\'' +
                 ", resources=" + resources.size() +
                 '}';
     }

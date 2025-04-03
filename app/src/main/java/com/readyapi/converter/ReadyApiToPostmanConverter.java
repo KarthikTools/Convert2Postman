@@ -10,6 +10,12 @@ import java.nio.file.Paths;
 import java.io.FileWriter;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
+import java.util.Map;
+import java.util.HashMap;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.readyapi.converter.postman.*;
 
 /**
  * Main class for converting ReadyAPI projects to Postman collections.
@@ -17,46 +23,42 @@ import org.dom4j.Element;
 public class ReadyApiToPostmanConverter {
     private static final Logger logger = LoggerFactory.getLogger(ReadyApiToPostmanConverter.class);
     
-    // List to track items that couldn't be converted
-    private final List<String> conversionIssues = new ArrayList<>();
+    private String baseUrl;
+    private final List<String> conversionIssues;
     private ConversionIssueReporter issueReporter;
+    private ReadyApiProjectParser projectParser;
+    private ObjectMapper objectMapper;
+    
+    public ReadyApiToPostmanConverter(String baseUrl) {
+        this.baseUrl = baseUrl;
+        this.conversionIssues = new ArrayList<>();
+        this.issueReporter = new ConversionIssueReporter();
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.enable(SerializationFeature.INDENT_OUTPUT);
+    }
+    
+    public ReadyApiToPostmanConverter() {
+        this("");
+    }
     
     public static void main(String[] args) {
-        // Parse command line arguments
-        if (args.length < 1) {
-            System.out.println("Usage: ReadyApiToPostmanConverter <input-file> [output-directory]");
-            System.out.println("  <input-file>       : Path to ReadyAPI project XML file");
-            System.out.println("  [output-directory] : Optional directory to save output files (defaults to ./output)");
+        if (args.length < 2) {
+            System.out.println("Usage: java -jar converter.jar <input-file> <output-directory> [base-url]");
             System.exit(1);
-            return;
         }
-        
-        // Get the input file path from command line arguments
-        String inputFilePath = args[0];
-        
-        // Get the output directory from command line arguments or use default
-        String outputDirectory = args.length > 1 ? args[1] : "./output";
-        
-        // Get the current working directory
-        String currentPath = new File(".").getAbsolutePath();
-        System.out.println("Current directory: " + currentPath);
-        
-        // Check if the file exists
-        File inputFile = new File(inputFilePath);
-        if (!inputFile.exists()) {
-            System.err.println("ERROR: Input file does not exist: " + inputFilePath);
+
+        String inputFile = args[0];
+        String outputDir = args[1];
+        String baseUrl = args.length > 2 ? args[2] : "";
+
+        try {
+            ReadyApiToPostmanConverter converter = new ReadyApiToPostmanConverter(baseUrl);
+            converter.convert(inputFile, outputDir);
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+            e.printStackTrace();
             System.exit(1);
-            return;
         }
-        
-        System.out.println("Input file path: " + inputFilePath);
-        System.out.println("Output directory: " + outputDirectory);
-        
-        ReadyApiToPostmanConverter converter = new ReadyApiToPostmanConverter();
-        boolean success = converter.convert(inputFilePath, outputDirectory);
-        
-        // Exit with appropriate status code
-        System.exit(success ? 0 : 1);
     }
     
     /**
@@ -81,11 +83,11 @@ public class ReadyApiToPostmanConverter {
             
             // Parse the ReadyAPI project
             logger.info("Parsing ReadyAPI project...");
-            ReadyApiProjectParser parser = new ReadyApiProjectParser();
+            projectParser = new ReadyApiProjectParser();
             ReadyApiProject project;
             
             try {
-                project = parser.parse(readyApiFile);
+                project = projectParser.parse(readyApiFile);
                 logger.info("Successfully parsed project: {}", project.getName());
             } catch (DocumentException e) {
                 logger.error("Failed to parse ReadyAPI project: {}", e.getMessage(), e);
@@ -98,13 +100,12 @@ public class ReadyApiToPostmanConverter {
             
             // Create Postman collection
             logger.info("Creating Postman collection...");
-            PostmanCollectionBuilder collectionBuilder = new PostmanCollectionBuilder(project);
-            PostmanCollection collection = collectionBuilder.build();
-            collection.setConversionIssues(collectionBuilder.getConversionIssues());
+            PostmanCollection collection = convert(project);
+            collection.setConversionIssues(conversionIssues);
             
             // Create Postman environment
             logger.info("Creating Postman environment...");
-            PostmanEnvironment environment = new PostmanEnvironmentBuilder(project, parser.getRootElement(), issueReporter).build();
+            PostmanEnvironment environment = new PostmanEnvironmentBuilder(project, projectParser.getRootElement(), issueReporter).build();
             
             // Save Postman collection and environment
             String projectName = project.getName();
@@ -136,9 +137,9 @@ public class ReadyApiToPostmanConverter {
             new DataFileExporter(project, outputDir).export();
             
             // Save conversion issues if any
-            if (!collection.getConversionIssues().isEmpty()) {
+            if (!conversionIssues.isEmpty()) {
                 logger.info("Saving conversion issues to: {}", issuesFile);
-                ConversionIssueReporter.saveIssues(collection.getConversionIssues(), issuesFile);
+                ConversionIssueReporter.saveIssues(conversionIssues, issuesFile);
             }
             
             // Save detailed conversion report
@@ -259,5 +260,114 @@ public class ReadyApiToPostmanConverter {
      */
     public ConversionIssueReporter getIssueReporter() {
         return issueReporter;
+    }
+    
+    /**
+     * Convert a ReadyAPI project to Postman collection
+     * 
+     * @param project The ReadyAPI project to convert
+     * @return The converted Postman collection
+     */
+    public PostmanCollection convert(ReadyApiProject project) {
+        PostmanCollection collection = new PostmanCollection();
+        
+        // Set collection info
+        PostmanCollection.PostmanInfo info = new PostmanCollection.PostmanInfo(project.getName());
+        info.setDescription(project.getDescription());
+        collection.setInfo(info);
+        
+        // Convert interfaces to folders
+        for (ReadyApiInterface apiInterface : project.getInterfaces()) {
+            com.readyapi.converter.postman.PostmanItem interfaceFolder = new com.readyapi.converter.postman.PostmanItem();
+            interfaceFolder.setName(apiInterface.getName());
+            
+            // Convert resources to requests
+            for (ReadyApiResource resource : apiInterface.getResources()) {
+                com.readyapi.converter.postman.PostmanItem requestItem = convertResourceToRequest(resource);
+                interfaceFolder.addItem(requestItem);
+            }
+            
+            collection.addItem(interfaceFolder);
+        }
+        
+        // Add variables
+        Map<String, String> properties = project.getProperties();
+        if (properties != null) {
+            for (Map.Entry<String, String> entry : properties.entrySet()) {
+                collection.addVariable(new PostmanCollection.PostmanVariable(
+                    entry.getKey(),
+                    entry.getValue(),
+                    "string",
+                    false
+                ));
+            }
+        }
+        
+        return collection;
+    }
+    
+    private com.readyapi.converter.postman.PostmanItem convertResourceToRequest(ReadyApiResource resource) {
+        com.readyapi.converter.postman.PostmanItem requestItem = new com.readyapi.converter.postman.PostmanItem();
+        requestItem.setName(resource.getName());
+        
+        PostmanRequest request = new PostmanRequest();
+        
+        // Set URL
+        PostmanRequest.PostmanUrl url = new PostmanRequest.PostmanUrl();
+        url.setRaw(baseUrl + resource.getPath());
+        url.setProtocol("http");
+        url.setHost(new ArrayList<>());
+        url.getHost().add("{{baseUrl}}");
+        url.setPath(new ArrayList<>());
+        for (String pathSegment : resource.getPath().split("/")) {
+            if (!pathSegment.isEmpty()) {
+                url.getPath().add(pathSegment);
+            }
+        }
+        request.setUrl(url);
+        
+        // Set headers
+        for (ReadyApiMethod method : resource.getMethods()) {
+            for (ReadyApiRequest readyRequest : method.getRequests()) {
+                for (Map.Entry<String, String> header : readyRequest.getRequestHeaders().entrySet()) {
+                    PostmanRequest.PostmanHeader postmanHeader = new PostmanRequest.PostmanHeader(
+                        header.getKey(), header.getValue());
+                    request.getHeader().add(postmanHeader);
+                }
+                
+                // Set body
+                if (readyRequest.getRequestBody() != null && !readyRequest.getRequestBody().isEmpty()) {
+                    PostmanRequest.PostmanBody body = new PostmanRequest.PostmanBody();
+                    body.setMode("raw");
+                    body.setRaw(readyRequest.getRequestBody());
+                    
+                    PostmanRequest.PostmanBody.PostmanBodyOptions options = 
+                        new PostmanRequest.PostmanBody.PostmanBodyOptions();
+                    
+                    PostmanRequest.PostmanBody.PostmanBodyOptions.PostmanRawOptions rawOptions = 
+                        new PostmanRequest.PostmanBody.PostmanBodyOptions.PostmanRawOptions();
+                    
+                    if (readyRequest.getMediaType() != null) {
+                        if (readyRequest.getMediaType().contains("json")) {
+                            rawOptions.setLanguage("json");
+                        } else if (readyRequest.getMediaType().contains("xml")) {
+                            rawOptions.setLanguage("xml");
+                        } else {
+                            rawOptions.setLanguage("text");
+                        }
+                    } else {
+                        rawOptions.setLanguage("text");
+                    }
+                    
+                    options.setRaw(rawOptions);
+                    body.setOptions(options);
+                    
+                    request.setBody(body);
+                }
+            }
+        }
+        
+        requestItem.setRequest(request);
+        return requestItem;
     }
 }

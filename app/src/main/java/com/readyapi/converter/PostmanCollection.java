@@ -12,6 +12,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import com.readyapi.converter.postman.PostmanInfo;
+import com.readyapi.converter.postman.PostmanItem;
+
 /**
  * Represents a Postman collection.
  */
@@ -19,14 +22,13 @@ public class PostmanCollection {
     private static final Logger logger = LoggerFactory.getLogger(PostmanCollection.class);
     
     private PostmanInfo info;
-    private List<PostmanItem> item = new ArrayList<>();
-    private List<PostmanVariable> variable = new ArrayList<>();
+    private List<PostmanItem> items;
+    private List<PostmanVariable> variables;
     private List<String> conversionIssues = new ArrayList<>();
     
     public PostmanCollection() {
-        // Initialize info with a random UUID
-        this.info = new PostmanInfo();
-        this.info.setPostmanId(UUID.randomUUID().toString());
+        this.items = new ArrayList<>();
+        this.variables = new ArrayList<>();
     }
     
     @JsonProperty("info")
@@ -39,29 +41,29 @@ public class PostmanCollection {
     }
     
     @JsonProperty("item")
-    public List<PostmanItem> getItem() {
-        return item;
+    public List<PostmanItem> getItems() {
+        return items;
     }
     
-    public void setItem(List<PostmanItem> item) {
-        this.item = item;
+    public void setItems(List<PostmanItem> items) {
+        this.items = items;
     }
     
     public void addItem(PostmanItem item) {
-        this.item.add(item);
+        this.items.add(item);
     }
     
     @JsonProperty("variable")
-    public List<PostmanVariable> getVariable() {
-        return variable;
+    public List<PostmanVariable> getVariables() {
+        return variables;
     }
     
-    public void setVariable(List<PostmanVariable> variable) {
-        this.variable = variable;
+    public void setVariables(List<PostmanVariable> variables) {
+        this.variables = variables;
     }
     
     public void addVariable(PostmanVariable variable) {
-        this.variable.add(variable);
+        this.variables.add(variable);
     }
     
     public List<String> getConversionIssues() {
@@ -99,6 +101,10 @@ public class PostmanCollection {
         private String description;
         private String schema = "https://schema.getpostman.com/json/collection/v2.1.0/collection.json";
         
+        public PostmanInfo(String name) {
+            this.name = name;
+        }
+        
         public String getName() {
             return name;
         }
@@ -129,6 +135,36 @@ public class PostmanCollection {
         
         public void setSchema(String schema) {
             this.schema = schema;
+        }
+    }
+
+    public static class PostmanVariable {
+        private String key;
+        private String value;
+        private String type;
+        private boolean disabled;
+
+        public PostmanVariable(String key, String value, String type, boolean disabled) {
+            this.key = key;
+            this.value = value;
+            this.type = type;
+            this.disabled = disabled;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public String getValue() {
+            return value;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public boolean isDisabled() {
+            return disabled;
         }
     }
 } 

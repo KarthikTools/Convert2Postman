@@ -12,8 +12,13 @@ public class ReadyApiTestSuite {
     private String id;
     private String name;
     private String runType;
-    private Map<String, String> properties = new HashMap<>();
-    private List<ReadyApiTestCase> testCases = new ArrayList<>();
+    private Map<String, String> properties;
+    private List<ReadyApiTestCase> testCases;
+    
+    public ReadyApiTestSuite() {
+        this.properties = new HashMap<>();
+        this.testCases = new ArrayList<>();
+    }
     
     public String getId() {
         return id;
@@ -64,7 +69,7 @@ public class ReadyApiTestSuite {
     }
     
     public void addTestCase(ReadyApiTestCase testCase) {
-        this.testCases.add(testCase);
+        testCases.add(testCase);
     }
     
     @Override

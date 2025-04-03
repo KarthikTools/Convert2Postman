@@ -4,13 +4,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Represents a ReadyAPI resource (endpoint).
+ * Represents a ReadyAPI resource.
  */
 public class ReadyApiResource {
     private String id;
     private String name;
     private String path;
-    private List<ReadyApiMethod> methods = new ArrayList<>();
+    private String description;
+    private List<ReadyApiMethod> methods;
+    
+    public ReadyApiResource() {
+        this.methods = new ArrayList<>();
+    }
     
     public String getId() {
         return id;
@@ -36,6 +41,14 @@ public class ReadyApiResource {
         this.path = path;
     }
     
+    public String getDescription() {
+        return description;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
+    }
+    
     public List<ReadyApiMethod> getMethods() {
         return methods;
     }
@@ -47,13 +60,14 @@ public class ReadyApiResource {
     public void addMethod(ReadyApiMethod method) {
         this.methods.add(method);
     }
-    
+
     @Override
     public String toString() {
         return "ReadyApiResource{" +
                 "id='" + id + '\'' +
                 ", name='" + name + '\'' +
                 ", path='" + path + '\'' +
+                ", description='" + description + '\'' +
                 ", methods=" + methods.size() +
                 '}';
     }

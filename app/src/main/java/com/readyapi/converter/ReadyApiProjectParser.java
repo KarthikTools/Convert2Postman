@@ -1,9 +1,13 @@
 package com.readyapi.converter;
 
+import com.readyapi.converter.postman.PostmanItem;
+import com.readyapi.converter.postman.PostmanRequest;
+import com.readyapi.converter.postman.PostmanEvent;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
 import org.dom4j.io.SAXReader;
+import org.dom4j.io.DOMReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.SAXException;
@@ -20,13 +24,14 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.io.BufferedInputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Properties;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
-import org.dom4j.io.DOMReader;
+import java.util.ArrayList;
 
 /**
  * Parser for ReadyAPI project XML files.
@@ -56,14 +61,17 @@ public class ReadyApiProjectParser {
             
             // Try with SAX parser first
             try {
-                // Configure Woodstox as the StAX implementation
+                // Configure Woodstox as the StAX implementation with larger buffers
                 System.setProperty("javax.xml.stream.XMLInputFactory", "com.ctc.wstx.stax.WstxInputFactory");
                 System.setProperty("javax.xml.stream.XMLOutputFactory", "com.ctc.wstx.stax.WstxOutputFactory");
                 System.setProperty("javax.xml.stream.XMLEventFactory", "com.ctc.wstx.stax.WstxEventFactory");
                 
-                // Try to increase SAX parser buffer size
-                System.setProperty("org.xml.sax.parser.bufferSize", "65536");
-                System.setProperty("elementAttributeLimit", "65536");
+                // Increase buffer sizes significantly
+                System.setProperty("org.xml.sax.parser.bufferSize", "131072"); // 128KB
+                System.setProperty("elementAttributeLimit", "131072");
+                System.setProperty("org.apache.xerces.xni.parser.XMLInputBufferSize", "131072");
+                System.setProperty("com.ctc.wstx.inputBufferSize", "131072");
+                System.setProperty("com.ctc.wstx.outputBufferSize", "131072");
                 
                 // Use DOM4J with SAXReader for better error handling
                 SAXReader reader = createConfiguredReader();
@@ -73,9 +81,11 @@ public class ReadyApiProjectParser {
                 nsMap.put("con", "http://eviware.com/soapui/config");
                 reader.getDocumentFactory().setXPathNamespaceURIs(nsMap);
                 
-                // Parse the document with SAX parser
+                // Parse the document with SAX parser using streaming
                 try (FileInputStream fis = new FileInputStream(new File(filePath))) {
-                    document = reader.read(fis);
+                    // Use a buffered input stream for better performance
+                    BufferedInputStream bis = new BufferedInputStream(fis, 131072);
+                    document = reader.read(bis);
                 } catch (IOException e) {
                     logger.error("IO error reading project file: {}", filePath, e);
                     throw new DocumentException("IO error reading project file: " + e.getMessage(), e);
@@ -85,21 +95,31 @@ public class ReadyApiProjectParser {
                 logger.warn("SAX parsing failed, trying DOM parsing instead: {}", e.getMessage());
                 
                 try {
-                    // Use DOM parser which handles larger elements better
+                    // Use DOM parser with optimized settings for large files
                     DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
                     factory.setNamespaceAware(true);
                     factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
                     factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
                     factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
                     
+                    // Set larger buffer sizes for DOM parser
+                    factory.setAttribute("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+                    factory.setAttribute("http://xml.org/sax/features/validation", false);
+                    factory.setAttribute("http://apache.org/xml/features/continue-after-fatal-error", true);
+                    
                     DocumentBuilder builder = factory.newDocumentBuilder();
-                    org.w3c.dom.Document w3cDoc = builder.parse(new File(filePath));
                     
-                    // Convert W3C DOM to DOM4J
-                    DOMReader domReader = new DOMReader();
-                    document = domReader.read(w3cDoc);
-                    
-                    logger.info("Successfully parsed with DOM parser");
+                    // Use a buffered input stream for better performance
+                    try (FileInputStream fis = new FileInputStream(new File(filePath));
+                         BufferedInputStream bis = new BufferedInputStream(fis, 131072)) {
+                        org.w3c.dom.Document w3cDoc = builder.parse(bis);
+                        
+                        // Convert W3C DOM to DOM4J
+                        DOMReader domReader = new DOMReader();
+                        document = domReader.read(w3cDoc);
+                        
+                        logger.info("Successfully parsed with DOM parser");
+                    }
                 } catch (IOException ioEx) {
                     logger.error("IO error reading project file: {}", filePath, ioEx);
                     throw new DocumentException("IO error reading project file: " + ioEx.getMessage(), ioEx);
@@ -323,26 +343,31 @@ public class ReadyApiProjectParser {
                         request.setName(requestElement.attributeValue("name"));
                         request.setMediaType(requestElement.attributeValue("mediaType"));
                         
-                        // Set endpoint
+                        // Extract endpoint and other properties
                         Element endpointElement = requestElement.element("endpoint");
                         if (endpointElement != null) {
                             request.setEndpoint(endpointElement.getTextTrim());
                         }
                         
-                        // Set request body
-                        Element requestBodyElement = requestElement.element("request");
-                        if (requestBodyElement != null) {
-                            request.setRequestBody(requestBodyElement.getTextTrim());
+                        Element requestMethodElement = requestElement.element("method");
+                        if (requestMethodElement != null) {
+                            request.setMethod(requestMethodElement.getTextTrim());
                         }
                         
-                        // Parse request headers
+                        // Extract request body
+                        Element requestBodyElement = requestElement.element("request");
+                        if (requestBodyElement != null) {
+                            request.setRequestContent(requestBodyElement.getTextTrim());
+                        }
+                        
+                        // Extract headers
                         Element headersElement = requestElement.element("headers");
                         if (headersElement != null) {
                             for (Element headerElement : headersElement.elements("header")) {
                                 String headerName = headerElement.attributeValue("name");
                                 String headerValue = headerElement.attributeValue("value");
                                 if (headerName != null && headerValue != null) {
-                                    request.addRequestHeader(headerName, headerValue);
+                                    request.addHeader(headerName, headerValue);
                                 }
                             }
                         }
@@ -350,20 +375,7 @@ public class ReadyApiProjectParser {
                         // Parse assertions
                         List<Element> assertionElements = requestElement.elements("assertion");
                         for (Element assertionElement : assertionElements) {
-                            ReadyApiAssertion assertion = new ReadyApiAssertion();
-                            assertion.setId(assertionElement.attributeValue("id"));
-                            assertion.setName(assertionElement.attributeValue("name"));
-                            assertion.setType(assertionElement.attributeValue("type"));
-                            
-                            // Parse assertion configuration
-                            Element configElement = assertionElement.element("configuration");
-                            if (configElement != null) {
-                                List<Element> configChildElements = configElement.elements();
-                                for (Element configChild : configChildElements) {
-                                    assertion.addConfigurationProperty(configChild.getName(), configChild.getTextTrim());
-                                }
-                            }
-                            
+                            ReadyApiAssertion assertion = parseAssertion(assertionElement);
                             request.addAssertion(assertion);
                         }
                         
@@ -479,402 +491,23 @@ public class ReadyApiProjectParser {
     /**
      * Parse a test step element.
      * 
-     * @param testStepElement The test step element
+     * @param stepElement The step element to parse
      * @return The parsed test step
      */
-    private ReadyApiTestStep parseTestStep(Element testStepElement) {
-        ReadyApiTestStep testStep = new ReadyApiTestStep();
-        testStep.setId(testStepElement.attributeValue("id"));
-        testStep.setName(testStepElement.attributeValue("name"));
-        testStep.setType(testStepElement.attributeValue("type"));
+    private ReadyApiTestStep parseTestStep(Element stepElement) {
+        ReadyApiTestStep step = new ReadyApiTestStep(stepElement);
         
-        // Parse test step configuration
-        Element configElement = testStepElement.element("config");
-        if (configElement != null) {
-            parseTestStepConfig(configElement, testStep);
-        }
-        
-        return testStep;
-    }
-    
-    /**
-     * Parse test step configuration.
-     * 
-     * @param configElement The config element
-     * @param testStep The test step to populate
-     */
-    private void parseTestStepConfig(Element configElement, ReadyApiTestStep testStep) {
-        if ("groovy".equalsIgnoreCase(testStep.getType())) {
-            // Parse Groovy script
-            Element scriptElement = configElement.element("script");
-            if (scriptElement != null) {
-                testStep.addProperty("script", scriptElement.getTextTrim());
-                testStep.setContent(scriptElement.getTextTrim());
-            }
-        } else if ("restrequest".equalsIgnoreCase(testStep.getType())) {
-            // Parse REST request
-            Element restRequestElement = configElement.element("restRequest");
-            if (restRequestElement != null) {
-                parseRestRequest(restRequestElement, testStep);
-            }
-        } else if ("properties".equalsIgnoreCase(testStep.getType())) {
-            // Parse properties test step
-            Element propertiesElement = configElement.element("properties");
-            if (propertiesElement != null) {
-                parsePropertiesStep(propertiesElement, testStep);
-            }
-        } else if ("datasource".equalsIgnoreCase(testStep.getType())) {
-            // Parse data source test step
-            parseDataSourceStep(configElement, testStep);
-        } else if ("datasourceloop".equalsIgnoreCase(testStep.getType())) {
-            // Parse data source loop test step
-            parseSimplePropertiesStep(configElement, testStep);
-        } else if ("propertytransfer".equalsIgnoreCase(testStep.getType())) {
-            // Parse property transfer test step
-            parsePropertyTransferStep(configElement, testStep);
-        } else if ("datasink".equalsIgnoreCase(testStep.getType())) {
-            // Parse datasink test step
-            parseDataSinkStep(configElement, testStep);
-        } else {
-            // For other types, just extract all properties
-            parseSimplePropertiesStep(configElement, testStep);
-        }
-    }
-    
-    /**
-     * Parse REST request.
-     * 
-     * @param restRequestElement The REST request element
-     * @param testStep The test step to populate
-     */
-    private void parseRestRequest(Element restRequestElement, ReadyApiTestStep testStep) {
-        ReadyApiRequest request = new ReadyApiRequest();
-        request.setId(restRequestElement.attributeValue("id"));
-        request.setName(restRequestElement.attributeValue("name"));
-        request.setMediaType(restRequestElement.attributeValue("mediaType"));
-        
-        // Parse request settings (headers, etc.)
-        Element settingsElement = restRequestElement.element("settings");
-        if (settingsElement != null) {
-            parseRequestSettings(settingsElement, request);
-        }
-        
-        // Set endpoint
-        Element endpointElement = restRequestElement.element("endpoint");
-        if (endpointElement != null) {
-            request.setEndpoint(endpointElement.getTextTrim());
-        }
-        
-        // Set request body
-        Element requestBodyElement = restRequestElement.element("request");
-        if (requestBodyElement != null) {
-            request.setBody(requestBodyElement.getTextTrim());
-        }
-        
-        // Parse assertions
-        List<Element> assertionElements = restRequestElement.elements("assertion");
-        for (Element assertionElement : assertionElements) {
-            ReadyApiAssertion assertion = parseAssertion(assertionElement);
-            request.addAssertion(assertion);
-        }
-        
-        testStep.setRequest(request);
-    }
-    
-    /**
-     * Parse a simple step with properties.
-     * 
-     * @param configElement The config element
-     * @param testStep The test step to populate
-     */
-    private void parseSimplePropertiesStep(Element configElement, ReadyApiTestStep testStep) {
-        // Extract all direct child elements as properties
-        for (Element element : configElement.elements()) {
-            String elemName = element.getName();
-            String elemValue = element.getTextTrim();
-            if (elemValue != null && !elemValue.isEmpty()) {
-                testStep.addProperty(elemName, elemValue);
-            }
-        }
-    }
-    
-    /**
-     * Parse a properties step.
-     * 
-     * @param propertiesElement The properties element
-     * @param testStep The test step to populate
-     */
-    private void parsePropertiesStep(Element propertiesElement, ReadyApiTestStep testStep) {
-        StringBuilder propertiesContent = new StringBuilder();
-        for (Element propElement : propertiesElement.elements("property")) {
-            String propName = propElement.elementText("name");
-            String propValue = propElement.elementText("value");
-            if (propName != null && propValue != null) {
-                propertiesContent.append(propName).append("=").append(propValue).append("\n");
-                testStep.addProperty(propName, propValue);
-            }
-        }
-        testStep.setContent(propertiesContent.toString());
-    }
-    
-    /**
-     * Parse a data source step.
-     * 
-     * @param configElement The config element
-     * @param testStep The test step to populate
-     */
-    private void parseDataSourceStep(Element configElement, ReadyApiTestStep testStep) {
-        // Extract all properties first
-        parseSimplePropertiesStep(configElement, testStep);
-        
-        // Handle Excel-specific properties
-        Element excelFileElement = configElement.element("file");
-        if (excelFileElement != null) {
-            String excelFile = excelFileElement.getTextTrim();
-            testStep.addProperty("file", excelFile);
-            
-            Element worksheetElement = configElement.element("worksheet");
-            if (worksheetElement != null) {
-                testStep.addProperty("worksheet", worksheetElement.getTextTrim());
-            }
-            
-            Element startRowElement = configElement.element("startRow");
-            if (startRowElement != null) {
-                testStep.addProperty("startRow", startRowElement.getTextTrim());
-            }
-            
-            Element startCellElement = configElement.element("startCell");
-            if (startCellElement != null) {
-                testStep.addProperty("startCell", startCellElement.getTextTrim());
-            }
-            
-            Element endRowElement = configElement.element("endRow");
-            if (endRowElement != null) {
-                testStep.addProperty("endRow", endRowElement.getTextTrim());
-            }
-            
-            Element endCellElement = configElement.element("endCell");
-            if (endCellElement != null) {
-                testStep.addProperty("endCell", endCellElement.getTextTrim());
-            }
-        }
-    }
-    
-    /**
-     * Parse a data sink step.
-     * 
-     * @param configElement The config element
-     * @param testStep The test step to populate
-     */
-    private void parseDataSinkStep(Element configElement, ReadyApiTestStep testStep) {
-        // Extract all simple properties
-        parseSimplePropertiesStep(configElement, testStep);
-        
-        // Extract specific datasink properties
-        Element targetStepElement = configElement.element("targetStep");
-        if (targetStepElement != null) {
-            testStep.addProperty("targetStep", targetStepElement.getTextTrim());
-        }
-        
-        Element formatElement = configElement.element("format");
-        if (formatElement != null) {
-            testStep.addProperty("format", formatElement.getTextTrim());
-        }
-        
-        Element fileElement = configElement.element("file");
-        if (fileElement != null) {
-            testStep.addProperty("file", fileElement.getTextTrim());
-        }
-        
-        // Handle Excel specific properties
-        Element worksheetElement = configElement.element("worksheet");
-        if (worksheetElement != null) {
-            testStep.addProperty("worksheet", worksheetElement.getTextTrim());
-        }
-        
-        // Handle column mappings
-        parseColumnMappings(configElement, testStep);
-    }
-    
-    /**
-     * Parse column mappings for data steps.
-     * 
-     * @param configElement The config element
-     * @param testStep The test step to populate
-     */
-    private void parseColumnMappings(Element configElement, ReadyApiTestStep testStep) {
-        Element columnMappingsElement = configElement.element("columnMappings");
-        if (columnMappingsElement != null) {
-            StringBuilder mappings = new StringBuilder();
-            List<Element> mappingElements = columnMappingsElement.elements("mapping");
-            for (Element mappingElement : mappingElements) {
-                String columnName = mappingElement.attributeValue("columnName");
-                String propertyName = mappingElement.attributeValue("propertyName");
-                if (columnName != null && propertyName != null) {
-                    mappings.append(columnName).append("=").append(propertyName).append(";");
-                    testStep.addProperty("mapping_" + columnName, propertyName);
-                }
-            }
-            testStep.addProperty("columnMappings", mappings.toString());
-        }
-    }
-    
-    /**
-     * Parse property transfer step.
-     * 
-     * @param configElement The config element
-     * @param testStep The test step to populate
-     */
-    private void parsePropertyTransferStep(Element configElement, ReadyApiTestStep testStep) {
-        Element transfersElement = configElement.element("transfers");
+        // Parse property transfers
+        Element transfersElement = stepElement.element("transfers");
         if (transfersElement != null) {
-            for (Element transferElement : transfersElement.elements("transfer")) {
-                ReadyApiTestStep.PropertyTransfer transfer = parsePropertyTransfer(transferElement);
-                testStep.addPropertyTransfer(transfer);
-            }
-        }
-    }
-    
-    /**
-     * Parse property transfer element.
-     * 
-     * @param transferElement The transfer element
-     * @return The parsed property transfer
-     */
-    private ReadyApiTestStep.PropertyTransfer parsePropertyTransfer(Element transferElement) {
-        ReadyApiTestStep.PropertyTransfer transfer = new ReadyApiTestStep.PropertyTransfer();
-        
-        // Set name if available
-        String transferName = transferElement.attributeValue("name");
-        if (transferName != null && !transferName.isEmpty()) {
-            transfer.setName(transferName);
-        }
-        
-        // Parse source
-        Element sourceElement = transferElement.element("source");
-        if (sourceElement != null) {
-            parseTransferEndpoint(sourceElement, transfer, true);
-        }
-        
-        // Parse target
-        Element targetElement = transferElement.element("target");
-        if (targetElement != null) {
-            parseTransferEndpoint(targetElement, transfer, false);
-        }
-        
-        return transfer;
-    }
-    
-    /**
-     * Parse transfer endpoint (source or target).
-     * 
-     * @param endpointElement The endpoint element
-     * @param transfer The property transfer to update
-     * @param isSource Whether this is a source endpoint (true) or target (false)
-     */
-    private void parseTransferEndpoint(Element endpointElement, ReadyApiTestStep.PropertyTransfer transfer, boolean isSource) {
-        // Get step name
-        String stepName = endpointElement.attributeValue("stepName");
-        if (stepName == null || stepName.isEmpty()) {
-            stepName = endpointElement.attributeValue("step");
-        }
-        
-        if (stepName != null && !stepName.isEmpty()) {
-            if (isSource) {
-                transfer.setSourceName(stepName);
-            } else {
-                transfer.setTargetName(stepName);
+            List<Element> transferElements = transfersElement.elements("transfer");
+            for (Element transferElement : transferElements) {
+                ReadyApiTestStep.PropertyTransfer transfer = new ReadyApiTestStep.PropertyTransfer(transferElement);
+                step.addPropertyTransfer(transfer);
             }
         }
         
-        // Get property path and language
-        String type = endpointElement.attributeValue("type");
-        String path = null;
-        String pathLanguage = null;
-        
-        // Try different elements based on type
-        if ("XPATH".equalsIgnoreCase(type)) {
-            path = endpointElement.elementText("path");
-            pathLanguage = "xpath";
-        } else if ("JSONPATH".equalsIgnoreCase(type)) {
-            path = endpointElement.elementText("path");
-            pathLanguage = "jsonpath";
-        } else if ("PROPERTY".equalsIgnoreCase(type)) {
-            path = endpointElement.elementText("property");
-            pathLanguage = "property";
-        } else {
-            // Try to guess based on available elements
-            if (endpointElement.element("xpathExpression") != null) {
-                path = endpointElement.elementText("xpathExpression");
-                pathLanguage = "xpath";
-            } else if (endpointElement.element("jsonPath") != null) {
-                path = endpointElement.elementText("jsonPath");
-                pathLanguage = "jsonpath";
-            } else if (endpointElement.element("property") != null) {
-                path = endpointElement.elementText("property");
-                pathLanguage = "property";
-            }
-        }
-        
-        if (path != null && !path.isEmpty()) {
-            if (isSource) {
-                transfer.setSourcePath(path);
-                transfer.setSourcePathLanguage(pathLanguage);
-            } else {
-                transfer.setTargetPath(path);
-                transfer.setTargetPathLanguage(pathLanguage);
-            }
-        }
-    }
-    
-    /**
-     * Parse request settings.
-     * 
-     * @param settingsElement The settings element
-     * @param request The request to populate
-     */
-    private void parseRequestSettings(Element settingsElement, ReadyApiRequest request) {
-        List<Element> settingElements = settingsElement.elements("setting");
-        for (Element settingElement : settingElements) {
-            String settingId = settingElement.attributeValue("id");
-            
-            if ("request-headers".equals(settingId)) {
-                Element headersElement = settingElement.element("headers");
-                if (headersElement != null) {
-                    for (Element headerElement : headersElement.elements("header")) {
-                        String headerName = headerElement.attributeValue("name");
-                        String headerValue = headerElement.attributeValue("value");
-                        if (headerName != null && headerValue != null) {
-                            request.addRequestHeader(headerName, headerValue);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    /**
-     * Parse assertion.
-     * 
-     * @param assertionElement The assertion element
-     * @return The parsed assertion
-     */
-    private ReadyApiAssertion parseAssertion(Element assertionElement) {
-        ReadyApiAssertion assertion = new ReadyApiAssertion();
-        assertion.setId(assertionElement.attributeValue("id"));
-        assertion.setName(assertionElement.attributeValue("name"));
-        assertion.setType(assertionElement.attributeValue("type"));
-        
-        // Parse assertion configuration
-        Element configElement = assertionElement.element("configuration");
-        if (configElement != null) {
-            List<Element> configChildElements = configElement.elements();
-            for (Element configChild : configChildElements) {
-                assertion.addConfigurationProperty(configChild.getName(), configChild.getTextTrim());
-            }
-        }
-        
-        return assertion;
+        return step;
     }
     
     /**
@@ -904,11 +537,263 @@ public class ReadyApiProjectParser {
     }
     
     /**
+     * Parse assertion.
+     * 
+     * @param assertionElement The assertion element
+     * @return The parsed assertion
+     */
+    private ReadyApiAssertion parseAssertion(Element assertionElement) {
+        // Use the new constructor that takes an XML element
+        return new ReadyApiAssertion(assertionElement);
+    }
+    
+    /**
      * Get the root element of the parsed project.
      * 
      * @return The root element of the parsed project
      */
     public Element getRootElement() {
         return rootElement;
+    }
+    
+    private ReadyApiRequest parseRequest(Element configElement) {
+        ReadyApiRequest request = new ReadyApiRequest();
+        
+        // Extract method and endpoint
+        request.setMethod(configElement.elementTextTrim("method"));
+        request.setEndpoint(configElement.elementTextTrim("endpoint"));
+        
+        // Extract media type
+        Element mediaTypeElement = configElement.element("mediaType");
+        if (mediaTypeElement != null) {
+            request.setMediaType(mediaTypeElement.getTextTrim());
+        }
+        
+        // Extract request body
+        Element requestElement = configElement.element("request");
+        if (requestElement != null) {
+            request.setBody(requestElement.getTextTrim());
+        }
+        
+        // Extract headers
+        Element headersElement = configElement.element("headers");
+        if (headersElement != null) {
+            for (Element headerElement : headersElement.elements("entry")) {
+                String headerName = headerElement.attributeValue("key");
+                String headerValue = headerElement.getTextTrim();
+                request.addHeader(headerName, headerValue);
+            }
+        }
+        
+        return request;
+    }
+    
+    /**
+     * Convert a Groovy script to JavaScript
+     * 
+     * @param groovyScript The Groovy script to convert
+     * @return The converted JavaScript code
+     */
+    private String convertGroovyToJavaScript(String groovyScript) {
+        if (groovyScript == null || groovyScript.trim().isEmpty()) {
+            return "";
+        }
+        
+        StringBuilder jsCode = new StringBuilder();
+        jsCode.append("// Converted from Groovy script\n");
+        
+        String[] lines = groovyScript.split("\n");
+        for (String line : lines) {
+            line = line.trim();
+            
+            if (line.isEmpty()) {
+                jsCode.append("\n");
+                continue;
+            }
+            
+            if (line.startsWith("//")) {
+                jsCode.append(line).append("\n");
+                continue;
+            }
+            
+            // Skip JsonSlurper lines as they're handled by pm.response.json()
+            if (line.contains("new JsonSlurper().parseText(")) {
+                continue;
+            }
+            
+            // Convert log.info to console.log
+            line = line.replaceAll("log\\.info\\((.+?)\\)", "console.log($1);");
+            
+            // Convert property value extraction
+            line = line.replaceAll(
+                "def (\\w+)\\s*=\\s*testRunner\\.testCase\\.testSteps\\[\"(.+?)\"\\]\\.getPropertyValue\\(\"(.+?)\"\\)",
+                "let $1 = pm.collectionVariables.get('$2_$3');"
+            );
+            
+            // Convert JSON parsing
+            line = line.replaceAll(
+                "def (\\w+)\\s*=\\s*parse_json\\.(\\w+)",
+                "let $1 = pm.response.json().$2;"
+            );
+            
+            // Convert assertions
+            line = line.replaceAll(
+                "assert (.+?)\\s*==\\s*(.+)",
+                "pm.test('Assert $1 == $2', function () {\n    pm.expect($1).to.eql($2);\n});"
+            );
+            
+            // Convert integer conversion
+            line = line.replaceAll(
+                "int (\\w+)\\s*=\\s*(\\w+)\\.toInteger\\(\\)",
+                "let $1 = parseInt($2);"
+            );
+            
+            jsCode.append(line).append("\n");
+        }
+        
+        return jsCode.toString();
+    }
+    
+    /**
+     * Convert ReadyAPI assertions to Postman test scripts
+     * 
+     * @param assertions List of assertion elements from ReadyAPI
+     * @return List of Postman test scripts
+     */
+    private List<String> convertAssertionsToTests(List<Element> assertions) {
+        List<String> tests = new ArrayList<>();
+        
+        for (Element assertion : assertions) {
+            String assertionType = assertion.attributeValue("type");
+            String name = assertion.attributeValue("name");
+            
+            if ("Valid HTTP Status Codes".equals(assertionType)) {
+                tests.add(String.format("pm.test(\"%s\", function () { pm.response.to.have.status(200); });", name));
+            } 
+            else if ("JSONPath Match".equals(assertionType)) {
+                Element config = assertion.element("configuration");
+                if (config != null) {
+                    Element pathElem = config.element("path");
+                    if (pathElem != null) {
+                        String path = pathElem.getText();
+                        tests.add(String.format("pm.test(\"Check JSONPath %s\", function () { var jsonData = pm.response.json(); pm.expect(jsonData%s).to.exist; });", 
+                            path, path));
+                    }
+                }
+            }
+            else if ("Contains".equals(assertionType)) {
+                Element config = assertion.element("configuration");
+                if (config != null) {
+                    Element tokenElem = config.element("token");
+                    if (tokenElem != null) {
+                        String token = tokenElem.getText();
+                        tests.add(String.format("pm.test(\"%s\", function () { pm.expect(pm.response.text()).to.include('%s'); });", 
+                            name, token));
+                    }
+                }
+            }
+            else if ("Not Contains".equals(assertionType)) {
+                Element config = assertion.element("configuration");
+                if (config != null) {
+                    Element tokenElem = config.element("token");
+                    if (tokenElem != null) {
+                        String token = tokenElem.getText();
+                        tests.add(String.format("pm.test(\"%s\", function () { pm.expect(pm.response.text()).to.not.include('%s'); });", 
+                            name, token));
+                    }
+                }
+            }
+            else if ("XPath Match".equals(assertionType)) {
+                Element config = assertion.element("configuration");
+                if (config != null) {
+                    Element xpathElem = config.element("xpath");
+                    if (xpathElem != null) {
+                        String xpath = xpathElem.getText();
+                        tests.add(String.format("pm.test(\"%s\", function () { var xmlDoc = pm.response.text(); pm.expect(xmlDoc).to.match(/%s/); });", 
+                            name, xpath));
+                    }
+                }
+            }
+        }
+        
+        return tests;
+    }
+    
+    /**
+     * Convert a test step to a Postman item
+     */
+    public PostmanItem convertTestStep(Element testStep) {
+        PostmanItem item = new PostmanItem();
+        item.setName(testStep.attributeValue("name"));
+        
+        // Convert request
+        Element requestElement = testStep.element("request");
+        if (requestElement != null) {
+            PostmanRequest request = convertRequest(requestElement);
+            item.setRequest(request);
+        }
+        
+        // Convert events (pre-request script and test)
+        List<Element> eventElements = testStep.elements("event");
+        for (Element eventElement : eventElements) {
+            PostmanItem.PostmanEvent event = new PostmanItem.PostmanEvent();
+            event.setListen(eventElement.attributeValue("type"));
+            
+            Element scriptElement = eventElement.element("script");
+            if (scriptElement != null) {
+                PostmanItem.PostmanScript script = new PostmanItem.PostmanScript(
+                    "text/javascript",
+                    scriptElement.getTextTrim()
+                );
+                event.setScript(script);
+            }
+            
+            item.addEvent(event);
+        }
+        
+        return item;
+    }
+    
+    private PostmanRequest convertRequest(Element requestElement) {
+        PostmanRequest request = new PostmanRequest();
+        
+        // Set method
+        String method = requestElement.attributeValue("method");
+        if (method != null) {
+            request.setMethod(method.toUpperCase());
+        }
+        
+        // Set URL
+        Element urlElement = requestElement.element("url");
+        if (urlElement != null) {
+            PostmanRequest.PostmanUrl url = new PostmanRequest.PostmanUrl();
+            url.setRaw(urlElement.getTextTrim());
+            request.setUrl(url);
+        }
+        
+        // Set headers
+        Element headersElement = requestElement.element("headers");
+        if (headersElement != null) {
+            List<Element> headerElements = headersElement.elements("header");
+            for (Element headerElement : headerElements) {
+                String key = headerElement.attributeValue("name");
+                String value = headerElement.attributeValue("value");
+                if (key != null && value != null) {
+                    PostmanRequest.PostmanHeader header = new PostmanRequest.PostmanHeader(key, value);
+                    request.addHeader(header);
+                }
+            }
+        }
+        
+        // Set body
+        Element bodyElement = requestElement.element("body");
+        if (bodyElement != null) {
+            PostmanRequest.PostmanBody body = new PostmanRequest.PostmanBody();
+            body.setMode("raw");
+            body.setRaw(bodyElement.getTextTrim());
+            request.setBody(body);
+        }
+        
+        return request;
     }
 } 

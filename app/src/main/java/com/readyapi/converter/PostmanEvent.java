@@ -1,6 +1,8 @@
 package com.readyapi.converter;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Represents a Postman event (pre-request script or test).
@@ -45,7 +47,14 @@ public class PostmanEvent {
      * @return A new PostmanEvent configured as a pre-request script
      */
     public static PostmanEvent createPreRequestScript(String scriptContent) {
-        return new PostmanEvent("prerequest", scriptContent);
+        PostmanEvent event = new PostmanEvent();
+        event.setListen("prerequest");
+        PostmanScript postmanScript = new PostmanScript();
+        postmanScript.setType("text/javascript");
+        postmanScript.setExec(new ArrayList<>());
+        postmanScript.getExec().add(scriptContent);
+        event.setScript(postmanScript);
+        return event;
     }
     
     /**
@@ -55,7 +64,14 @@ public class PostmanEvent {
      * @return A new PostmanEvent configured as a test script
      */
     public static PostmanEvent createTest(String scriptContent) {
-        return new PostmanEvent("test", scriptContent);
+        PostmanEvent event = new PostmanEvent();
+        event.setListen("test");
+        PostmanScript postmanScript = new PostmanScript();
+        postmanScript.setType("text/javascript");
+        postmanScript.setExec(new ArrayList<>());
+        postmanScript.getExec().add(scriptContent);
+        event.setScript(postmanScript);
+        return event;
     }
     
     /**
@@ -76,14 +92,14 @@ public class PostmanEvent {
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PostmanScript {
-        private java.util.List<String> exec = new java.util.ArrayList<>();
+        private List<String> exec = new ArrayList<>();
         private String type;
         
-        public java.util.List<String> getExec() {
+        public List<String> getExec() {
             return exec;
         }
         
-        public void setExec(java.util.List<String> exec) {
+        public void setExec(List<String> exec) {
             this.exec = exec;
         }
         

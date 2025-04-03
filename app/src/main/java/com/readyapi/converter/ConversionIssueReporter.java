@@ -17,6 +17,10 @@ public class ConversionIssueReporter {
     private final List<ConversionIssue> issues = new ArrayList<>();
     private final LocalDateTime reportTime = LocalDateTime.now();
     
+    public ConversionIssueReporter() {
+        this.projectName = "";
+    }
+    
     public ConversionIssueReporter(String projectName) {
         this.projectName = projectName;
     }

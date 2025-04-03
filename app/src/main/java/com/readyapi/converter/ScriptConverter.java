@@ -5,275 +5,250 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Enhanced converter for Groovy scripts to JavaScript.
- * Provides more robust handling of complex Groovy constructs.
+ * Provides comprehensive handling of ReadyAPI/SoapUI Groovy constructs for Postman.
  */
 public class ScriptConverter {
+    private static final Logger logger = LoggerFactory.getLogger(ScriptConverter.class);
     
     // Common Groovy to JavaScript conversion patterns
     private static final List<PatternReplacement> SYNTAX_CONVERSIONS = new ArrayList<>();
     
     static {
-        // Initialize common conversion patterns
+        // Initialize comprehensive conversion patterns
         
-        // Groovy def keyword to JavaScript let/const
+        // Basic conversions
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
             Pattern.compile("def\\s+(\\w+)\\s*=\\s*(.+?)(?:;|$)"),
             "let $1 = $2;"
         ));
         
-        // Groovy string interpolation "${var}" to JavaScript `${var}`
+        // String interpolation
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
             Pattern.compile("\"(.*?)\\$\\{(.*?)\\}(.*?)\""),
             "`$1${$2}$3`"
         ));
         
-        // Groovy list declaration to JavaScript array
+        // Logging
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("\\[([^\\]]*?)\\]\\s+as\\s+List"),
-            "[$1]"
+            Pattern.compile("log\\.info\\((.+?)\\)"),
+            "console.log($1);"
         ));
         
-        // Groovy map declaration to JavaScript object
-        SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("\\[([^\\]]*?)\\]\\s+as\\s+Map"),
-            "{$1}"
-        ));
-        
-        // Groovy each closure to JavaScript forEach
-        SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.each\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.forEach(($2 != null ? $2 : 'item') => { $3 })"
-        ));
-        
-        // Groovy collect closure to JavaScript map
-        SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.collect\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.map(($2 != null ? $2 : 'item') => { return $3; })"
-        ));
-        
-        // Groovy find closure to JavaScript find
-        SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.find\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.find(($2 != null ? $2 : 'item') => { return $3; })"
-        ));
-        
-        // Groovy findAll closure to JavaScript filter
-        SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.findAll\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.filter(($2 != null ? $2 : 'item') => { return $3; })"
-        ));
-        
-        // Groovy any closure to JavaScript some
-        SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.any\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.some(($2 != null ? $2 : 'item') => { return $3; })"
-        ));
-        
-        // Groovy every/all closure to JavaScript every
-        SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.(every|all)\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.every(($3 != null ? $3 : 'item') => { return $4; })"
-        ));
-        
-        // Groovy println to JavaScript console.log
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
             Pattern.compile("println\\s+(.+?)(?:;|$)"),
             "console.log($1);"
         ));
         
-        // Groovy assert to JavaScript assertion
+        // TestRunner property access
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("def\\s+(\\w+)\\s*=\\s*testRunner\\.testCase\\.testSuite\\.project\\.getPropertyValue\\(\"(.+?)\"\\)"),
+            "let $1 = pm.collectionVariables.get('$2');"
+        ));
+        
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("testRunner\\.testCase\\.testSuite\\.project\\.setPropertyValue\\(\"(.+?)\",\\s*(.+?)\\)"),
+            "pm.collectionVariables.set('$1', $2);"
+        ));
+        
+        // Test step property access
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("def\\s+(\\w+)\\s*=\\s*testRunner\\.testCase\\.testSteps\\[\"(.+?)\"\\]\\.getPropertyValue\\(\"(.+?)\"\\)"),
+            "let $1 = pm.collectionVariables.get('$2_$3');"
+        ));
+        
+        // JSON parsing
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("def\\s+(\\w+)\\s*=\\s*new\\s+JsonSlurper\\(\\)\\.parseText\\((.+?)\\)"),
+            "let $1 = JSON.parse($2);"
+        ));
+        
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("def\\s+(\\w+)\\s*=\\s*(\\w+)\\.(\\w+)"),
+            "let $1 = $2.$3;"
+        ));
+        
+        // Assertions
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("assert\\s+(.+?)\\s*==\\s*(.+?)(?:;|$)"),
+            "pm.test('Assert: $1 equals $2', function () { pm.expect($1).to.eql($2); });"
+        ));
+        
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
             Pattern.compile("assert\\s+(.+?)(?:;|$)"),
-            "if (!($1)) { throw new Error('Assertion failed: ' + $1); };"
+            "pm.test('Assert: $1 is truthy', function () { pm.expect($1).to.be.ok; });"
         ));
         
-        // Groovy multi-line string (""") to JavaScript template literal
+        // Type conversions
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("\"\"\"([\\s\\S]*?)\"\"\""),
-            "`$1`"
+            Pattern.compile("(int|Integer)\\s+(\\w+)\\s*=\\s*(\\w+)\\.toInteger\\(\\)"),
+            "let $2 = parseInt($3);"
         ));
         
-        // Groovy for loop with range to JavaScript for loop
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("for\\s*\\(\\s*(\\w+)\\s+in\\s+(\\d+)\\s*\\.\\.<\\s*(\\d+|\\w+)\\s*\\)\\s*\\{"),
-            "for (let $1 = $2; $1 < $3; $1++) {"
+            Pattern.compile("(float|Float|double|Double)\\s+(\\w+)\\s*=\\s*(\\w+)\\.toDouble\\(\\)"),
+            "let $2 = parseFloat($3);"
         ));
         
-        // Groovy for loop with inclusive range to JavaScript for loop
+        // Groovy list operations
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("for\\s*\\(\\s*(\\w+)\\s+in\\s+(\\d+)\\s*\\.\\.\\s*(\\d+|\\w+)\\s*\\)\\s*\\{"),
-            "for (let $1 = $2; $1 <= $3; $1++) {"
+            Pattern.compile("\\[([^\\]]*?)\\]\\s+as\\s+List"),
+            "[$1]"
         ));
         
-        // Groovy sleep to JavaScript setTimeout with await
+        // Groovy map declaration
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("sleep\\s*\\(\\s*(\\d+)\\s*\\)"),
-            "await new Promise(resolve => setTimeout(resolve, $1))"
+            Pattern.compile("\\[([^\\]]*?)\\]\\s+as\\s+Map"),
+            "{$1}"
         ));
         
-        // Groovy try-catch with specific exception type to JavaScript try-catch
+        // Groovy collection operations
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("try\\s*\\{([\\s\\S]*?)\\}\\s*catch\\s*\\(\\s*(\\w+)\\s+(\\w+)\\s*\\)\\s*\\{"),
-            "try {$1} catch ($3) {"
+            Pattern.compile("(\\w+)\\.each\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.forEach(($2 != null ? $2 : 'item') => { $3 })"
         ));
         
-        // Groovy elvis operator (?:) to JavaScript nullish coalescing operator (??)
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+(?:\\.\\w+)*)\\s*\\?:\\s*(.+?)(?:;|$)"),
-            "$1 ?? $2;"
+            Pattern.compile("(\\w+)\\.collect\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.map(($2 != null ? $2 : 'item') => { return $3; })"
         ));
         
-        // Groovy safe navigation operator (?.) to JavaScript optional chaining (?.)
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+(?:\\.\\w+)*)\\?\\.(\\w+)"),
-            "$1?.$2"
+            Pattern.compile("(\\w+)\\.find\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.find(($2 != null ? $2 : 'item') => { return $3; })"
+        ));
+        
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("(\\w+)\\.findAll\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.filter(($2 != null ? $2 : 'item') => { return $3; })"
+        ));
+        
+        // Context variables
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("context\\.expand\\('\\$\\{(.+?)\\}'\\)"),
+            "pm.variables.get('$1')"
+        ));
+        
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("context\\.testCase\\.setPropertyValue\\(\"(.+?)\",\\s*(.+?)\\)"),
+            "pm.variables.set('$1', $2);"
+        ));
+        
+        // ReadyAPI specific constructs
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("testRunner\\.testCase\\.getTestStepByName\\(\"(.+?)\"\\)"),
+            "// Postman equivalent: Use pm.variables to access step data\n// Original: testRunner.testCase.getTestStepByName('$1')"
+        ));
+        
+        // File operations
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("new\\s+File\\((.+?)\\)"),
+            "// Note: File operations are limited in Postman. Using console output instead.\n// Original: new File($1)"
+        ));
+        
+        // HTTP requests
+        SYNTAX_CONVERSIONS.add(new PatternReplacement(
+            Pattern.compile("def\\s+(\\w+)\\s*=\\s*testRunner\\.testCase\\.testSteps\\[\"(.+?)\"\\]\\.run\\((.+?)\\)"),
+            "// Note: Step execution not available in Postman.\n// Original: $1 = testRunner.testCase.testSteps[\"$2\"].run($3)"
         ));
     }
     
     /**
-     * Convert a Groovy script to JavaScript.
+     * Convert a Groovy script to JavaScript with detailed analysis and pattern matching.
      * 
      * @param groovyScript The Groovy script to convert
+     * @param scriptType The type of script (e.g., "library", "test", "setup", "teardown")
      * @return The converted JavaScript
      */
-    public String convertGroovyToJavaScript(String groovyScript) {
+    public static String convertToJavaScript(String groovyScript, String scriptType) {
         if (groovyScript == null || groovyScript.isEmpty()) {
-            return "// Empty script";
+            return "// Empty " + scriptType + " script";
         }
-        
-        // Check if the script contains async operations
-        boolean isAsync = groovyScript.contains("sleep") || 
-                         groovyScript.contains("wait") || 
-                         groovyScript.contains("async") ||
-                         groovyScript.contains("promise");
         
         StringBuilder jsScript = new StringBuilder();
         
         // Add documentation header
         jsScript.append("/**\n");
-        jsScript.append(" * Converted from ReadyAPI Groovy script to Postman JavaScript\n");
-        jsScript.append(" * Note: Some Groovy-specific features may require manual adjustment\n");
+        jsScript.append(" * Converted from ReadyAPI Groovy " + scriptType + " to Postman JavaScript\n");
+        jsScript.append(" * Some Groovy-specific features may require manual adjustment\n");
         jsScript.append(" */\n\n");
         
-        // Add async wrapper if needed
-        if (isAsync) {
-            jsScript.append("(async function() {\n");
-            jsScript.append("  try {\n");
-        } else {
-            jsScript.append("(function() {\n");
-            jsScript.append("  try {\n");
-        }
-        
-        // Apply all syntax conversions
-        String convertedScript = groovyScript;
-        for (PatternReplacement conversion : SYNTAX_CONVERSIONS) {
-            convertedScript = conversion.apply(convertedScript);
-        }
-        
-        // Add ReadyAPI context mapping
-        convertedScript = addReadyApiContextMapping(convertedScript);
-        
-        // Add indentation to the converted script
-        String[] lines = convertedScript.split("\n");
-        for (String line : lines) {
-            jsScript.append("    ").append(line).append("\n");
-        }
-        
-        // Close the wrapper function
-        if (isAsync) {
-            jsScript.append("  } catch (error) {\n");
-            jsScript.append("    console.error('Script execution error:', error);\n");
-            jsScript.append("    throw error;\n");
-            jsScript.append("  }\n");
-            jsScript.append("})();\n");
-        } else {
-            jsScript.append("  } catch (error) {\n");
-            jsScript.append("    console.error('Script execution error:', error);\n");
-            jsScript.append("    throw error;\n");
-            jsScript.append("  }\n");
-            jsScript.append("})();\n");
+        try {
+            // Process the script line by line for better analysis
+            String[] lines = groovyScript.split("\n");
+            List<String> processedLines = new ArrayList<>();
+            boolean hasJsonSlurper = false;
+            boolean hasStringToStringMap = false;
+            
+            // Pre-process to detect imports and context
+            for (String line : lines) {
+                if (line.contains("JsonSlurper")) hasJsonSlurper = true;
+                if (line.contains("StringToStringMap")) hasStringToStringMap = true;
+                
+                // Skip typical imports - we'll handle these with appropriate replacements
+                if (line.trim().startsWith("import ")) continue;
+                
+                // Skip package definitions
+                if (line.trim().startsWith("package ")) continue;
+                
+                processedLines.add(line);
+            }
+            
+            // Add appropriate Postman equivalents based on detected imports
+            if (hasJsonSlurper) {
+                jsScript.append("// JSON parsing support\n");
+                jsScript.append("// Note: Postman has native JSON support via pm.response.json()\n\n");
+            }
+            
+            if (hasStringToStringMap) {
+                jsScript.append("// Header management setup\n");
+                jsScript.append("let headers = {};\n\n");
+            }
+            
+            // Add ReadyAPI context mapping based on script type
+            if ("test".equals(scriptType)) {
+                jsScript.append("// Access response body\n");
+                jsScript.append("let responseBody = pm.response.text();\n");
+                jsScript.append("let responseJson;\n");
+                jsScript.append("try {\n");
+                jsScript.append("    responseJson = pm.response.json();\n");
+                jsScript.append("} catch (e) {\n");
+                jsScript.append("    console.log('Response is not JSON');\n");
+                jsScript.append("}\n\n");
+            }
+            
+            // Process the script content
+            StringBuilder convertedScript = new StringBuilder();
+            for (String line : processedLines) {
+                String processedLine = line;
+                
+                // Apply all syntax conversions
+                for (PatternReplacement conversion : SYNTAX_CONVERSIONS) {
+                    processedLine = conversion.apply(processedLine);
+                }
+                
+                convertedScript.append(processedLine).append("\n");
+            }
+            
+            // Add the processed script to the result
+            jsScript.append(convertedScript);
+            
+        } catch (Exception e) {
+            logger.error("Error converting script: {}", e.getMessage());
+            jsScript.append("// Error during conversion: ").append(e.getMessage()).append("\n");
+            jsScript.append("// Original script retained below:\n");
+            jsScript.append("/*\n").append(groovyScript).append("\n*/\n");
         }
         
         return jsScript.toString();
     }
     
     /**
-     * Convert a Groovy script to JavaScript with a specific script type.
-     * 
-     * @param groovyScript The Groovy script to convert
-     * @param scriptType The type of script (e.g., "test", "library")
-     * @return The converted JavaScript
-     */
-    public static String convertToJavaScript(String groovyScript, String scriptType) {
-        ScriptConverter converter = new ScriptConverter();
-        String jsScript = converter.convertGroovyToJavaScript(groovyScript);
-        
-        // Add additional context based on script type
-        if ("library".equals(scriptType)) {
-            // For libraries, wrap in a module pattern to avoid global namespace pollution
-            StringBuilder libraryScript = new StringBuilder();
-            libraryScript.append("// Ready API Library Script\n");
-            libraryScript.append("const readyApiLibrary = (function() {\n");
-            libraryScript.append("  // Library exports\n");
-            libraryScript.append("  return {\n");
-            libraryScript.append("    init: function() {\n");
-            libraryScript.append("      // Initialize library methods\n");
-            
-            // Add the converted script with indentation
-            String[] lines = jsScript.split("\n");
-            for (String line : lines) {
-                libraryScript.append("      ").append(line).append("\n");
-            }
-            
-            libraryScript.append("    }\n");
-            libraryScript.append("  };\n");
-            libraryScript.append("})();\n\n");
-            libraryScript.append("// Initialize the library\n");
-            libraryScript.append("readyApiLibrary.init();\n");
-            
-            return libraryScript.toString();
-        }
-        
-        return jsScript;
-    }
-    
-    /**
-     * Add ReadyAPI context mapping to the script.
-     * 
-     * @param script The script to modify
-     * @return The modified script
-     */
-    private String addReadyApiContextMapping(String script) {
-        StringBuilder mappedScript = new StringBuilder();
-        
-        // Add ReadyAPI context mapping
-        mappedScript.append("// Map ReadyAPI context to Postman\n");
-        mappedScript.append("const context = pm.variables;\n");
-        mappedScript.append("const testRunner = {\n");
-        mappedScript.append("  testCase: { name: pm.info.requestName },\n");
-        mappedScript.append("  testSuite: { name: pm.info.requestName.split(' - ')[0] },\n");
-        mappedScript.append("  getStatus: function() { return pm.response.status; },\n");
-        mappedScript.append("  getResponseContent: function() { return pm.response.text(); },\n");
-        mappedScript.append("  getResponseHeaders: function() { return pm.response.headers.toObject(); },\n");
-        mappedScript.append("  getResponseTime: function() { return pm.response.responseTime; },\n");
-        mappedScript.append("  log: function(message) { console.log(message); }\n");
-        mappedScript.append("};\n\n");
-        
-        // Replace common ReadyAPI context references
-        script = script.replace("log.", "console.");
-        script = script.replace("testRunner.", "testRunner.");
-        script = script.replace("context.", "context.");
-        
-        mappedScript.append(script);
-        
-        return mappedScript.toString();
-    }
-    
-    /**
-     * Helper class for pattern-based replacements.
+     * Helper class for pattern-based replacements with robust error handling.
      */
     private static class PatternReplacement {
         private final Pattern pattern;
@@ -286,6 +261,8 @@ public class ScriptConverter {
         
         public String apply(String input) {
             try {
+                if (input == null) return "";
+                
                 Matcher matcher = pattern.matcher(input);
                 
                 // Use StringBuilder and appendReplacement for safer processing
@@ -305,7 +282,7 @@ public class ScriptConverter {
                         }
                     }
                     
-                    // Handle conditional expressions like $2 ? $2 : 'item'
+                    // Handle conditional expressions like $2 != null ? $2 : 'item'
                     // with appropriate null checks
                     repl = repl.replaceAll("\\(\\$\\d+ != null \\? \\$\\d+ : '([^']+)'\\)", "$1");
                     
@@ -316,9 +293,51 @@ public class ScriptConverter {
                 return result.toString();
             } catch (Exception e) {
                 // In case of regex error, log it and return the original string
-                System.err.println("Error in regex replacement: " + e.getMessage());
+                logger.error("Error in regex replacement: {}", e.getMessage());
                 return input;
             }
         }
+    }
+
+    public String convertGroovyToJavaScript(String groovyScript) {
+        if (groovyScript == null || groovyScript.trim().isEmpty()) {
+            return "";
+        }
+        
+        StringBuilder result = new StringBuilder();
+        result.append("// Converted from Groovy script\n");
+        
+        String[] lines = groovyScript.split("\n");
+        for (String line : lines) {
+            String convertedLine = convertLine(line);
+            if (convertedLine != null && !convertedLine.isEmpty()) {
+                result.append(convertedLine).append("\n");
+            }
+        }
+        
+        return result.toString();
+    }
+    
+    /**
+     * Convert a single line of Groovy to JavaScript.
+     * 
+     * @param line The line to convert
+     * @return The converted line
+     */
+    private String convertLine(String line) {
+        String trimmedLine = line.trim();
+        
+        // Skip empty lines and comments
+        if (trimmedLine.isEmpty() || trimmedLine.startsWith("//")) {
+            return line;
+        }
+        
+        // Apply all pattern replacements
+        String result = line;
+        for (PatternReplacement conversion : SYNTAX_CONVERSIONS) {
+            result = conversion.pattern.matcher(result).replaceAll(conversion.replacement);
+        }
+        
+        return result;
     }
 }

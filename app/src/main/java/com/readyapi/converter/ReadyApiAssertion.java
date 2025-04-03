@@ -2,30 +2,43 @@ package com.readyapi.converter;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.ArrayList;
+import org.dom4j.Element;
 
 /**
- * Represents a ReadyAPI assertion.
+ * Represents an assertion in a ReadyAPI test step
  */
 public class ReadyApiAssertion {
-    private String id;
-    private String name;
     private String type;
-    private Map<String, String> configuration = new HashMap<>();
+    private String name;
+    private Map<String, String> configuration;
     
-    public String getId() {
-        return id;
+    public ReadyApiAssertion() {
+        this.configuration = new HashMap<>();
     }
     
-    public void setId(String id) {
-        this.id = id;
-    }
-    
-    public String getName() {
-        return name;
-    }
-    
-    public void setName(String name) {
+    public ReadyApiAssertion(String type, String name) {
+        this.type = type;
         this.name = name;
+        this.configuration = new HashMap<>();
+    }
+    
+    public ReadyApiAssertion(Element element) {
+        this.type = element.attributeValue("type");
+        this.name = element.attributeValue("name");
+        this.configuration = new HashMap<>();
+        
+        Element configElement = element.element("configuration");
+        if (configElement != null) {
+            for (Element entry : configElement.elements("entry")) {
+                String key = entry.attributeValue("key");
+                String value = entry.attributeValue("value");
+                if (key != null && value != null) {
+                    configuration.put(key, value);
+                }
+            }
+        }
     }
     
     public String getType() {
@@ -36,6 +49,14 @@ public class ReadyApiAssertion {
         this.type = type;
     }
     
+    public String getName() {
+        return name;
+    }
+    
+    public void setName(String name) {
+        this.name = name;
+    }
+    
     public Map<String, String> getConfiguration() {
         return configuration;
     }
@@ -44,92 +65,55 @@ public class ReadyApiAssertion {
         this.configuration = configuration;
     }
     
-    public void addConfigurationProperty(String name, String value) {
-        this.configuration.put(name, value);
+    public String getConfigurationProperty(String key) {
+        return configuration.get(key);
     }
     
-    public String getConfigurationProperty(String name) {
-        return this.configuration.get(name);
+    public void setConfigurationProperty(String key, String value) {
+        configuration.put(key, value);
     }
     
-    /**
-     * Convert the assertion to a Postman test script.
-     * 
-     * @return JavaScript code for Postman tests
-     */
     public String toPostmanTest() {
-        StringBuilder js = new StringBuilder();
-        
-        switch (type) {
-            case "Valid HTTP Status Codes":
-                String statusCodes = getConfigurationProperty("codes");
-                if (statusCodes != null) {
-                    String[] codes = statusCodes.split(",");
-                    for (String code : codes) {
-                        js.append("pm.test(\"Status code is ").append(code.trim()).append("\", function() {\n");
-                        js.append("    pm.response.to.have.status(").append(code.trim()).append(");\n");
-                        js.append("});\n");
-                    }
-                }
-                break;
-                
-            case "Response SLA":
-                String sla = getConfigurationProperty("SLA");
-                if (sla != null) {
-                    js.append("pm.test(\"Response time is less than ").append(sla).append("ms\", function() {\n");
-                    js.append("    pm.expect(pm.response.responseTime).to.be.below(").append(sla).append(");\n");
-                    js.append("});\n");
-                }
-                break;
-                
-            case "XPath Match":
-                String path = getConfigurationProperty("path");
-                String content = getConfigurationProperty("content");
-                if (path != null && content != null) {
-                    js.append("pm.test(\"XPath Match for ").append(path).append("\", function() {\n");
-                    js.append("    const responseXml = xml2Json(pm.response.text());\n");
-                    js.append("    // This is a simplified XPath. For complex XPath, you may need a proper XML parser library\n");
-                    js.append("    pm.expect(responseXml).to.have.nested.property(\"").append(path.replace("/", ".")).append("\");\n");
-                    js.append("});\n");
-                }
-                break;
-                
-            case "JSON Path Match":
-                String jsonPath = getConfigurationProperty("path");
-                String jsonContent = getConfigurationProperty("content");
-                if (jsonPath != null && jsonContent != null) {
-                    js.append("pm.test(\"JSON Path Match for ").append(jsonPath).append("\", function() {\n");
-                    js.append("    const jsonData = pm.response.json();\n");
-                    js.append("    pm.expect(jsonData).to.have.nested.property(\"").append(jsonPath).append("\");\n");
-                    js.append("    pm.expect(jsonData.").append(jsonPath).append(").to.equal(").append(jsonContent).append(");\n");
-                    js.append("});\n");
-                }
-                break;
-                
-            case "Contains":
-                String token = getConfigurationProperty("token");
-                if (token != null) {
-                    js.append("pm.test(\"Response contains ").append(token).append("\", function() {\n");
-                    js.append("    pm.expect(pm.response.text()).to.include(\"").append(token).append("\");\n");
-                    js.append("});\n");
-                }
-                break;
-                
-            default:
-                js.append("// Unsupported assertion type: ").append(type);
-                break;
+        if ("Valid HTTP Status Codes".equals(type)) {
+            return String.format("pm.test(\"%s\", function () { pm.response.to.have.status(200); });", name);
+        } else if ("JSONPath Match".equals(type)) {
+            String path = getConfigurationProperty("path");
+            if (path != null) {
+                return String.format("pm.test(\"Check JSONPath %s\", function () { var jsonData = pm.response.json(); pm.expect(jsonData%s).to.exist; });", path, path);
+            }
+        } else if ("Contains".equals(type)) {
+            String content = getConfigurationProperty("content");
+            if (content != null) {
+                return String.format("pm.test(\"%s\", function () { pm.expect(pm.response.text()).to.include('%s'); });", name, content);
+            }
+        } else if ("Not Contains".equals(type)) {
+            String content = getConfigurationProperty("content");
+            if (content != null) {
+                return String.format("pm.test(\"%s\", function () { pm.expect(pm.response.text()).to.not.include('%s'); });", name, content);
+            }
+        } else if ("XPath Match".equals(type)) {
+            String xpath = getConfigurationProperty("xpath");
+            if (xpath != null) {
+                return String.format("pm.test(\"%s\", function () { var xmlDoc = pm.response.text(); var xpathResult = xmlDoc.evaluate('%s', xmlDoc, null, XPathResult.BOOLEAN_TYPE, null); pm.expect(xpathResult.booleanValue).to.be.true; });", name, xpath);
+            }
+        } else if ("Response SLA".equals(type)) {
+            String maxTime = getConfigurationProperty("maxTime");
+            if (maxTime != null) {
+                return String.format("pm.test(\"%s\", function () { pm.expect(pm.response.responseTime).to.be.below(%s); });", name, maxTime);
+            }
+        } else if ("Script Assertion".equals(type)) {
+            String script = getConfigurationProperty("script");
+            if (script != null) {
+                return String.format("pm.test(\"%s\", function () { %s });", name, script);
+            }
         }
         
-        return js.toString();
+        return String.format("pm.test(\"%s\", function () { /* Unsupported assertion type: %s */ });", name, type);
     }
     
-    @Override
-    public String toString() {
-        return "ReadyApiAssertion{" +
-                "id='" + id + '\'' +
-                ", name='" + name + '\'' +
-                ", type='" + type + '\'' +
-                ", configuration=" + configuration +
-                '}';
+    public List<String> convertToPostmanTest() {
+        List<String> tests = new ArrayList<>();
+        tests.add(toPostmanTest());
+        return tests;
     }
 } 
