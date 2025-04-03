@@ -12,6 +12,7 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class PostmanItem {
     private String name;
+    private String description;
     private List<PostmanItem> item;
     private PostmanRequest request;
     private List<PostmanEvent> event;
@@ -23,6 +24,15 @@ public class PostmanItem {
     
     public void setName(String name) {
         this.name = name;
+    }
+    
+    @JsonProperty("description")
+    public String getDescription() {
+        return description;
+    }
+    
+    public void setDescription(String description) {
+        this.description = description;
     }
     
     @JsonProperty("item")

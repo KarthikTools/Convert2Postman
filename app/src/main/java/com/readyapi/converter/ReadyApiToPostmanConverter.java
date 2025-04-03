@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.nio.file.Paths;
 import java.io.FileWriter;
+import org.dom4j.Element;
 
 /**
  * Main class for converting ReadyAPI projects to Postman collections.
@@ -63,7 +64,11 @@ public class ReadyApiToPostmanConverter {
             
             // Parse the ReadyAPI project
             System.out.println("Parsing ReadyAPI project...");
-            ReadyApiProject project = new ReadyApiProjectParser().parse(readyApiFile);
+            ReadyApiProjectParser parser = new ReadyApiProjectParser();
+            ReadyApiProject project = parser.parse(readyApiFile);
+            
+            // Create a ConversionIssueReporter
+            ConversionIssueReporter issueReporter = new ConversionIssueReporter(project.getName());
             
             // Create Postman collection
             System.out.println("Creating Postman collection...");
@@ -73,7 +78,7 @@ public class ReadyApiToPostmanConverter {
             
             // Create Postman environment
             System.out.println("Creating Postman environment...");
-            PostmanEnvironment environment = new PostmanEnvironmentBuilder(project).build();
+            PostmanEnvironment environment = new PostmanEnvironmentBuilder(project, parser.getRootElement(), issueReporter).build();
             
             // Save Postman collection and environment
             String projectName = project.getName();

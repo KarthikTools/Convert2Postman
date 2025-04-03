@@ -94,13 +94,13 @@ public class PostmanEnvironmentBuilder {
             }
             
             // Add as environment variable
-            environment.addVariable(new PostmanEnvironmentVariable(key, value));
+            environment.addVariable(key, value);
             logger.debug("Added project property to environment: {}", key);
         }
         
         // Add project-specific variables
-        environment.addVariable(new PostmanEnvironmentVariable("projectName", project.getName()));
-        environment.addVariable(new PostmanEnvironmentVariable("environment", "Default"));
+        environment.addVariable("projectName", project.getName());
+        environment.addVariable("environment", "Default");
         
         // Add the main environment to our list
         environments.add(environment);
@@ -125,8 +125,8 @@ public class PostmanEnvironmentBuilder {
             envSpecific.setName(project.getName() + " - " + envName);
             
             // Add environment-specific setting
-            envSpecific.addVariable(new PostmanEnvironmentVariable("environment", envName));
-            envSpecific.addVariable(new PostmanEnvironmentVariable("projectName", project.getName()));
+            envSpecific.addVariable("environment", envName);
+            envSpecific.addVariable("projectName", project.getName());
             
             // Extract environment properties
             Element propertiesElement = envElement.element("properties");
@@ -140,7 +140,7 @@ public class PostmanEnvironmentBuilder {
                         String value = valueElement.getTextTrim();
                         
                         if (name != null && !name.isEmpty()) {
-                            envSpecific.addVariable(new PostmanEnvironmentVariable(name, value));
+                            envSpecific.addVariable(name, value);
                             logger.debug("Added environment-specific property: {} for {}", name, envName);
                         }
                     }
@@ -209,14 +209,14 @@ public class PostmanEnvironmentBuilder {
      */
     private void setIfMissing(PostmanEnvironment environment, String name, String value) {
         // Check if variable already exists
-        for (PostmanEnvironmentVariable var : environment.getVariables()) {
+        for (PostmanEnvironment.PostmanEnvironmentVariable var : environment.getVariables()) {
             if (var.getKey().equals(name)) {
                 return; // Already exists, don't override
             }
         }
         
         // Add the variable
-        environment.addVariable(new PostmanEnvironmentVariable(name, value));
+        environment.addVariable(name, value);
     }
     
     /**
@@ -239,7 +239,7 @@ public class PostmanEnvironmentBuilder {
                 
                 // Add namespace to avoid conflicts
                 String namespacedKey = refProject.getName() + "_" + key;
-                environment.addVariable(new PostmanEnvironmentVariable(namespacedKey, value));
+                environment.addVariable(namespacedKey, value);
                 
                 logger.debug("Added referenced project property: {}", namespacedKey);
                 issueReporter.addInfo("EnvironmentBuilder", 

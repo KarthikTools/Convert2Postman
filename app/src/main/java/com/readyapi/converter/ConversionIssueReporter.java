@@ -32,6 +32,27 @@ public class ConversionIssueReporter {
     }
     
     /**
+     * Static method to save a list of conversion issues to a file.
+     * 
+     * @param issues The list of issue descriptions to save
+     * @param filePath The path to the file to save to
+     */
+    public static void saveIssues(List<String> issues, String filePath) {
+        try (FileWriter writer = new FileWriter(filePath)) {
+            writer.write("# Conversion Issues\n\n");
+            writer.write("The following issues were encountered during conversion:\n\n");
+            
+            for (String issue : issues) {
+                writer.write("- " + issue + "\n");
+            }
+            
+            logger.info("Conversion issues saved to: {}", filePath);
+        } catch (IOException e) {
+            logger.error("Error saving conversion issues to file: {}", filePath, e);
+        }
+    }
+    
+    /**
      * Add an issue with the specified severity.
      * 
      * @param component Component where the issue occurred
