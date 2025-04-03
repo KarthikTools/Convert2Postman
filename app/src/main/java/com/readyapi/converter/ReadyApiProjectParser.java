@@ -24,6 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Properties;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.DocumentBuilder;
+import org.dom4j.io.DOMReader;
 
 /**
  * Parser for ReadyAPI project XML files.
