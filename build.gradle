@@ -1,58 +1,26 @@
-plugins {
-    id 'java'
-    id 'application'
-}
-
-group = 'com.readyapi.converter'
-version = '1.0-SNAPSHOT'
-
-sourceCompatibility = 11
-targetCompatibility = 11
+apply plugin: 'java'
+apply plugin: 'application'
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    // XML parsing
     implementation 'org.dom4j:dom4j:2.1.3'
-    implementation 'xerces:xercesImpl:2.12.2'
-    implementation 'xml-apis:xml-apis:1.4.01'
-    
-    // Excel file handling
-    implementation 'org.apache.poi:poi:5.2.3'
-    implementation 'org.apache.poi:poi-ooxml:5.2.3'
-    
-    // Jackson BOM for consistent versions
-    implementation platform('com.fasterxml.jackson:jackson-bom:2.13.4')
-    
-    // JSON processing - use BOM managed versions
-    implementation 'com.fasterxml.jackson.core:jackson-databind'
-    implementation 'com.fasterxml.jackson.core:jackson-core'
-    implementation 'com.fasterxml.jackson.core:jackson-annotations'
-    
-    // Apache Commons
-    implementation 'commons-io:commons-io:2.11.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.13.0'
+    implementation 'commons-cli:commons-cli:1.4'
     implementation 'org.apache.commons:commons-lang3:3.12.0'
-    implementation 'org.apache.commons:commons-text:1.10.0'
-    implementation 'commons-codec:commons-codec:1.15'
+    implementation 'org.apache.commons:commons-text:1.9'
+    implementation 'org.slf4j:slf4j-api:1.7.32'
+    implementation 'ch.qos.logback:logback-classic:1.2.6'
     
-    // For Java to JavaScript conversion
-    implementation 'org.codehaus.groovy:groovy-all:3.0.9@pom'
-    implementation 'org.codehaus.groovy:groovy:3.0.9'
-    implementation 'org.codehaus.groovy:groovy-jsr223:3.0.9'
-    
-    // For logging
-    implementation 'org.slf4j:slf4j-api:1.7.36'
-    implementation 'ch.qos.logback:logback-classic:1.2.11'
-    
-    // JUnit for testing
-    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.8.1'
+    testImplementation 'org.mockito:mockito-core:4.0.0'
 }
 
-application {
-    mainClass = 'com.readyapi.converter.ReadyApiToPostmanConverter'
-}
+mainClassName = 'com.readyapi.converter.ReadyApiToPostmanConverter'
 
 jar {
     manifest {
@@ -60,149 +28,15 @@ jar {
     }
 }
 
-// Create a fat jar with all dependencies
-tasks.register('fatJar', Jar) {
-    archiveBaseName = project.name + '-all'
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+task fatJar(type: Jar) {
     manifest {
         attributes 'Main-Class': 'com.readyapi.converter.ReadyApiToPostmanConverter'
     }
-    from { 
-        configurations.runtimeClasspath
-            .filter { it.name.endsWith('.jar') } // Only include JAR files, skip POM files
-            .collect { it.isDirectory() ? it : zipTree(it) } 
-    }
+    archiveBaseName = "${project.name}-all"
+    from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
     with jar
 }
 
-// Task to create project structure
-tasks.register('createProjectStructure') {
-    doLast {
-        // Create source directories
-        mkdir 'src/main/java'
-        mkdir 'src/main/resources'
-        mkdir 'src/test/java'
-        mkdir 'src/test/resources'
-        
-        // Create base package directories
-        def packagePath = 'src/main/java/com/readyapi/converter'
-        mkdir packagePath
-        mkdir packagePath + '/model'
-        mkdir packagePath + '/util'
-        
-        // Create resource directories
-        mkdir 'src/main/resources/logback'
-        
-        println "Project structure created successfully"
-    }
+test {
+    useJUnitPlatform()
 }
-
-// Task to copy existing sources
-tasks.register('copySources') {
-    dependsOn 'createProjectStructure'
-    doLast {
-        copy {
-            from 'src/main/java'
-            into 'src/main/java'
-            include '**/*.java'
-        }
-        
-        // Copy resources
-        copy {
-            from 'src/main/resources'
-            into 'src/main/resources'
-            include '**/*'
-        }
-        
-        // Create logback configuration if it doesn't exist
-        def logbackFile = file('src/main/resources/logback.xml')
-        if (!logbackFile.exists()) {
-            logbackFile.text = '''<configuration>
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
-    
-    <root level="INFO">
-        <appender-ref ref="STDOUT" />
-    </root>
-</configuration>'''
-        }
-        
-        println "Source files copied successfully"
-    }
-}
-
-// Task to migrate Maven project to Gradle
-tasks.register('migrateMavenToGradle') {
-    dependsOn 'createProjectStructure'
-    doLast {
-        // Find all Java files in the existing project
-        fileTree(dir: 'src', include: '**/*.java').each { file ->
-            // Determine the package and destination file
-            def relativePath = file.path.replace(project.projectDir.toString() + '/src/', '')
-            def isMain = relativePath.startsWith('main/')
-            def isTest = relativePath.startsWith('test/')
-            
-            if (isMain || isTest) {
-                def newPath = file.path
-                // Copy the file to the new structure
-                def targetFile = new File(project.projectDir, file.path)
-                targetFile.parentFile.mkdirs()
-                targetFile.text = file.text
-                println "Copied: ${file.path}"
-            }
-        }
-        
-        // Copy resources - fix the syntax for includes
-        fileTree(dir: 'src', includes: ['**/*.xml', '**/*.properties', '**/*.json']).each { file ->
-            def relativePath = file.path.replace(project.projectDir.toString() + '/src/', '')
-            def isMain = relativePath.startsWith('main/')
-            def isTest = relativePath.startsWith('test/')
-            
-            if (isMain || isTest) {
-                def newPath = file.path
-                // Copy the file to the new structure
-                def targetFile = new File(project.projectDir, file.path)
-                targetFile.parentFile.mkdirs()
-                targetFile.text = file.text
-                println "Copied resource: ${file.path}"
-            }
-        }
-        
-        // Create logback configuration if it doesn't exist
-        def logbackFile = file('src/main/resources/logback.xml')
-        if (!logbackFile.exists()) {
-            logbackFile.parentFile.mkdirs()
-            logbackFile.text = '''<configuration>
-    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
-    
-    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
-        <file>readyapi-to-postman-converter.log</file>
-        <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-        </encoder>
-    </appender>
-    
-    <root level="info">
-        <appender-ref ref="CONSOLE" />
-        <appender-ref ref="FILE" />
-    </root>
-</configuration>'''
-            println "Created logback.xml"
-        }
-        
-        println "Maven project migrated to Gradle successfully"
-    }
-}
-
-// Add Gradle wrapper
-wrapper {
-    gradleVersion = '8.5'
-    distributionType = Wrapper.DistributionType.ALL
-} 

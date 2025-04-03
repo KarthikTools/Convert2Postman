@@ -20,14 +20,23 @@ public class ReadyApiToPostmanConverter {
     private final List<String> conversionIssues = new ArrayList<>();
     
     public static void main(String[] args) {
+        // Parse command line arguments
+        if (args.length < 1) {
+            System.out.println("Usage: ReadyApiToPostmanConverter <input-file> [output-directory]");
+            System.out.println("  <input-file>       : Path to ReadyAPI project XML file");
+            System.out.println("  [output-directory] : Optional directory to save output files (defaults to ./output)");
+            return;
+        }
+        
+        // Get the input file path from command line arguments
+        String inputFilePath = args[0];
+        
+        // Get the output directory from command line arguments or use default
+        String outputDirectory = args.length > 1 ? args[1] : "./output";
+        
         // Get the current working directory
         String currentPath = new File(".").getAbsolutePath();
         System.out.println("Current directory: " + currentPath);
-        
-        // Use absolute paths to be sure
-        String convertToPostmanDir = "/Users/kargee/createXML/samples/Convert2Postman";
-        String inputFilePath = convertToPostmanDir + "/clean_xml/ready_api_project.xml";
-        String outputDirectory = convertToPostmanDir + "/output";
         
         // Check if the file exists
         File inputFile = new File(inputFilePath);
@@ -198,4 +207,4 @@ public class ReadyApiToPostmanConverter {
     public List<String> getConversionIssues() {
         return conversionIssues;
     }
-} 
+}
