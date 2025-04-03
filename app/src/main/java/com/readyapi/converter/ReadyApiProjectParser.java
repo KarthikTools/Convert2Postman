@@ -52,23 +52,65 @@ public class ReadyApiProjectParser {
         logger.info("Parsing ReadyAPI project file: {}", filePath);
         
         try {
-            // Configure Woodstox as the StAX implementation
-            System.setProperty("javax.xml.stream.XMLInputFactory", "com.ctc.wstx.stax.WstxInputFactory");
-            System.setProperty("javax.xml.stream.XMLOutputFactory", "com.ctc.wstx.stax.WstxOutputFactory");
-            System.setProperty("javax.xml.stream.XMLEventFactory", "com.ctc.wstx.stax.WstxEventFactory");
+            Document document = null;
             
-            // Use DOM4J with SAXReader for better error handling
-            SAXReader reader = createConfiguredReader();
+            // Try with SAX parser first
+            try {
+                // Configure Woodstox as the StAX implementation
+                System.setProperty("javax.xml.stream.XMLInputFactory", "com.ctc.wstx.stax.WstxInputFactory");
+                System.setProperty("javax.xml.stream.XMLOutputFactory", "com.ctc.wstx.stax.WstxOutputFactory");
+                System.setProperty("javax.xml.stream.XMLEventFactory", "com.ctc.wstx.stax.WstxEventFactory");
+                
+                // Try to increase SAX parser buffer size
+                System.setProperty("org.xml.sax.parser.bufferSize", "65536");
+                System.setProperty("elementAttributeLimit", "65536");
+                
+                // Use DOM4J with SAXReader for better error handling
+                SAXReader reader = createConfiguredReader();
+                
+                // Configure namespace handling
+                Map<String, String> nsMap = new HashMap<>();
+                nsMap.put("con", "http://eviware.com/soapui/config");
+                reader.getDocumentFactory().setXPathNamespaceURIs(nsMap);
+                
+                // Parse the document with SAX parser
+                try (FileInputStream fis = new FileInputStream(new File(filePath))) {
+                    document = reader.read(fis);
+                } catch (IOException e) {
+                    logger.error("IO error reading project file: {}", filePath, e);
+                    throw new DocumentException("IO error reading project file: " + e.getMessage(), e);
+                }
+            } catch (Exception e) {
+                // If SAX parsing fails, try DOM parsing which handles large files better
+                logger.warn("SAX parsing failed, trying DOM parsing instead: {}", e.getMessage());
+                
+                try {
+                    // Use DOM parser which handles larger elements better
+                    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                    factory.setNamespaceAware(true);
+                    factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+                    factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+                    factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+                    
+                    DocumentBuilder builder = factory.newDocumentBuilder();
+                    org.w3c.dom.Document w3cDoc = builder.parse(new File(filePath));
+                    
+                    // Convert W3C DOM to DOM4J
+                    DOMReader domReader = new DOMReader();
+                    document = domReader.read(w3cDoc);
+                    
+                    logger.info("Successfully parsed with DOM parser");
+                } catch (IOException ioEx) {
+                    logger.error("IO error reading project file: {}", filePath, ioEx);
+                    throw new DocumentException("IO error reading project file: " + ioEx.getMessage(), ioEx);
+                } catch (Exception domEx) {
+                    logger.error("DOM parsing also failed: {}", domEx.getMessage());
+                    throw new DocumentException("Failed to parse XML with both SAX and DOM parsers", domEx);
+                }
+            }
             
-            // Configure namespace handling
-            Map<String, String> nsMap = new HashMap<>();
-            nsMap.put("con", "http://eviware.com/soapui/config");
-            reader.getDocumentFactory().setXPathNamespaceURIs(nsMap);
-            
-            // Parse the document with proper error handling
-            Document document;
-            try (FileInputStream fis = new FileInputStream(new File(filePath))) {
-                document = reader.read(fis);
+            if (document == null) {
+                throw new DocumentException("Failed to parse XML document: document is null");
             }
             
             rootElement = document.getRootElement();
@@ -89,9 +131,6 @@ public class ReadyApiProjectParser {
         } catch (DocumentException e) {
             logger.error("Error parsing project file: {}", filePath, e);
             throw e;
-        } catch (IOException e) {
-            logger.error("IO error reading project file: {}", filePath, e);
-            throw new DocumentException("IO error reading project file: " + e.getMessage(), e);
         } catch (Exception e) {
             logger.error("Unexpected error parsing project file: {}", filePath, e);
             throw new DocumentException("Unexpected error: " + e.getMessage(), e);
@@ -112,7 +151,11 @@ public class ReadyApiProjectParser {
             reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
             reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
             
-            // Set a validating reader to handle entity references properly
+            // Set larger buffer size via system property
+            System.setProperty("org.apache.xerces.xni.parser.XMLInputBufferSize", "65536");
+            
+            // Disable DTD validation to improve performance
+            reader.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
             reader.setValidation(false);
             
         } catch (SAXException e) {
