@@ -1,23 +1,25 @@
 package com.readyapi.converter;
 
-// import org.slf4j.Logger;
-// import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.nio.file.Paths;
 import java.io.FileWriter;
+import org.dom4j.DocumentException;
 import org.dom4j.Element;
 
 /**
  * Main class for converting ReadyAPI projects to Postman collections.
  */
 public class ReadyApiToPostmanConverter {
-    // private static final Logger logger = LoggerFactory.getLogger(ReadyApiToPostmanConverter.class);
+    private static final Logger logger = LoggerFactory.getLogger(ReadyApiToPostmanConverter.class);
     
     // List to track items that couldn't be converted
     private final List<String> conversionIssues = new ArrayList<>();
+    private ConversionIssueReporter issueReporter;
     
     public static void main(String[] args) {
         // Parse command line arguments
@@ -25,6 +27,7 @@ public class ReadyApiToPostmanConverter {
             System.out.println("Usage: ReadyApiToPostmanConverter <input-file> [output-directory]");
             System.out.println("  <input-file>       : Path to ReadyAPI project XML file");
             System.out.println("  [output-directory] : Optional directory to save output files (defaults to ./output)");
+            System.exit(1);
             return;
         }
         
@@ -42,6 +45,7 @@ public class ReadyApiToPostmanConverter {
         File inputFile = new File(inputFilePath);
         if (!inputFile.exists()) {
             System.err.println("ERROR: Input file does not exist: " + inputFilePath);
+            System.exit(1);
             return;
         }
         
@@ -49,7 +53,10 @@ public class ReadyApiToPostmanConverter {
         System.out.println("Output directory: " + outputDirectory);
         
         ReadyApiToPostmanConverter converter = new ReadyApiToPostmanConverter();
-        converter.convert(inputFilePath, outputDirectory);
+        boolean success = converter.convert(inputFilePath, outputDirectory);
+        
+        // Exit with appropriate status code
+        System.exit(success ? 0 : 1);
     }
     
     /**
@@ -57,36 +64,46 @@ public class ReadyApiToPostmanConverter {
      * 
      * @param readyApiFile Path to the ReadyAPI project file
      * @param outputDirectory Directory to save the output files
+     * @return true if conversion was successful, false otherwise
      */
-    public void convert(String readyApiFile, String outputDirectory) {
-        System.out.println("Starting conversion of ReadyAPI project: " + readyApiFile);
+    public boolean convert(String readyApiFile, String outputDirectory) {
+        logger.info("Starting conversion of ReadyAPI project: {}", readyApiFile);
         
         try {
             // Create output directory if it doesn't exist
             File outputDir = new File(outputDirectory);
             if (!outputDir.exists()) {
                 if (!outputDir.mkdirs()) {
-                    System.err.println("Failed to create output directory: " + outputDirectory);
-                    return;
+                    logger.error("Failed to create output directory: {}", outputDirectory);
+                    return false;
                 }
             }
             
             // Parse the ReadyAPI project
-            System.out.println("Parsing ReadyAPI project...");
+            logger.info("Parsing ReadyAPI project...");
             ReadyApiProjectParser parser = new ReadyApiProjectParser();
-            ReadyApiProject project = parser.parse(readyApiFile);
+            ReadyApiProject project;
+            
+            try {
+                project = parser.parse(readyApiFile);
+                logger.info("Successfully parsed project: {}", project.getName());
+            } catch (DocumentException e) {
+                logger.error("Failed to parse ReadyAPI project: {}", e.getMessage(), e);
+                System.err.println("Error parsing ReadyAPI project: " + e.getMessage());
+                return false;
+            }
             
             // Create a ConversionIssueReporter
-            ConversionIssueReporter issueReporter = new ConversionIssueReporter(project.getName());
+            issueReporter = new ConversionIssueReporter(project.getName());
             
             // Create Postman collection
-            System.out.println("Creating Postman collection...");
+            logger.info("Creating Postman collection...");
             PostmanCollectionBuilder collectionBuilder = new PostmanCollectionBuilder(project);
             PostmanCollection collection = collectionBuilder.build();
             collection.setConversionIssues(collectionBuilder.getConversionIssues());
             
             // Create Postman environment
-            System.out.println("Creating Postman environment...");
+            logger.info("Creating Postman environment...");
             PostmanEnvironment environment = new PostmanEnvironmentBuilder(project, parser.getRootElement(), issueReporter).build();
             
             // Save Postman collection and environment
@@ -94,42 +111,68 @@ public class ReadyApiToPostmanConverter {
             String collectionFile = outputDir.getPath() + File.separator + projectName + ".postman_collection.json";
             String environmentFile = outputDir.getPath() + File.separator + projectName + ".postman_environment.json";
             String issuesFile = outputDir.getPath() + File.separator + projectName + "_conversion_issues.txt";
+            String reportFile = outputDir.getPath() + File.separator + projectName + "_conversion_report.md";
             
-            System.out.println("Saving Postman collection to: " + collectionFile);
-            collection.saveToFile(collectionFile);
+            logger.info("Saving Postman collection to: {}", collectionFile);
+            try {
+                collection.saveToFile(collectionFile);
+            } catch (IOException e) {
+                logger.error("Failed to save Postman collection: {}", e.getMessage(), e);
+                issueReporter.addError("File I/O", "Failed to save Postman collection: " + e.getMessage());
+                return false;
+            }
             
-            System.out.println("Saving Postman environment to: " + environmentFile);
-            environment.saveToFile(environmentFile);
+            logger.info("Saving Postman environment to: {}", environmentFile);
+            try {
+                environment.saveToFile(environmentFile);
+            } catch (IOException e) {
+                logger.error("Failed to save Postman environment: {}", e.getMessage(), e);
+                issueReporter.addError("File I/O", "Failed to save Postman environment: " + e.getMessage());
+                return false;
+            }
             
             // Save any CSV data files
-            System.out.println("Saving data files...");
+            logger.info("Saving data files...");
             new DataFileExporter(project, outputDir).export();
             
             // Save conversion issues if any
             if (!collection.getConversionIssues().isEmpty()) {
-                System.out.println("Saving conversion issues to: " + issuesFile);
+                logger.info("Saving conversion issues to: {}", issuesFile);
                 ConversionIssueReporter.saveIssues(collection.getConversionIssues(), issuesFile);
             }
             
-            System.out.println("Validating Postman collection...");
+            // Save detailed conversion report
+            logger.info("Saving conversion report to: {}", reportFile);
+            issueReporter.saveReport(outputDir);
+            
+            logger.info("Validating Postman collection...");
             boolean isValid = new PostmanCollectionValidator().validate(collectionFile);
             if (isValid) {
-                System.out.println("Postman collection validation successful!");
+                logger.info("Postman collection validation successful!");
             } else {
-                System.out.println("Postman collection validation failed. See logs for details.");
+                logger.warn("Postman collection validation failed. See logs for details.");
+                issueReporter.addWarning("Validation", "Postman collection validation failed");
             }
             
             // Create a README file with information about function libraries
             createReadmeFile(outputDir, collection);
             
-            System.out.println("Conversion completed successfully! Files written to " + outputDir.getAbsolutePath());
-            System.out.println("Collection file: " + collectionFile);
-            System.out.println("Environment file: " + environmentFile);
+            logger.info("Conversion completed successfully! Files written to {}", outputDir.getAbsolutePath());
+            logger.info("Collection file: {}", collectionFile);
+            logger.info("Environment file: {}", environmentFile);
             
-            return;
+            // Check if there were any critical errors
+            if (issueReporter.hasErrors()) {
+                logger.warn("Conversion completed with errors. See report for details.");
+                return false;
+            }
+            
+            return true;
         } catch (Exception e) {
+            logger.error("Unexpected error during conversion: {}", e.getMessage(), e);
             System.err.println("Error during conversion: " + e.getMessage());
             e.printStackTrace();
+            return false;
         }
     }
     
@@ -193,9 +236,10 @@ public class ReadyApiToPostmanConverter {
                 writer.write("If you encounter any issues with the converted collection, please contact your API team.\n");
             }
             
-            // logger.info("Created README file: {}", readmeFile.getPath());
+            logger.info("Created README file: {}", readmeFile.getPath());
         } catch (IOException e) {
-            // logger.error("Error creating README file", e);
+            logger.error("Error creating README file", e);
+            issueReporter.addWarning("Documentation", "Failed to create README file: " + e.getMessage());
         }
     }
     
@@ -206,5 +250,14 @@ public class ReadyApiToPostmanConverter {
      */
     public List<String> getConversionIssues() {
         return conversionIssues;
+    }
+    
+    /**
+     * Get the issue reporter
+     * 
+     * @return The ConversionIssueReporter
+     */
+    public ConversionIssueReporter getIssueReporter() {
+        return issueReporter;
     }
 }

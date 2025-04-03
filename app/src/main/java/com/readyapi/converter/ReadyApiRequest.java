@@ -116,6 +116,26 @@ public class ReadyApiRequest {
         this.assertions.add(assertion);
     }
     
+    public Map<String, String> getRequestHeaders() {
+        return headers;
+    }
+    
+    public void addRequestHeader(String name, String value) {
+        this.headers.put(name, value);
+    }
+    
+    public String getBody() {
+        return requestBody;
+    }
+    
+    public void setBody(String body) {
+        this.requestBody = body;
+    }
+    
+    public String getContentType() {
+        return mediaType;
+    }
+    
     /**
      * Parse authentication settings from XML element.
      * 

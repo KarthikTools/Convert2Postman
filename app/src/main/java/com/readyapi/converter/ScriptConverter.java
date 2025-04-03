@@ -44,38 +44,38 @@ public class ScriptConverter {
         
         // Groovy each closure to JavaScript forEach
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.each\\s*\\{\\s*(?:it|([\\w,]+))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.forEach(($2 ? $2 : 'item') => { $3 })"
+            Pattern.compile("(\\w+)\\.each\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.forEach(($2 != null ? $2 : 'item') => { $3 })"
         ));
         
         // Groovy collect closure to JavaScript map
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.collect\\s*\\{\\s*(?:it|([\\w,]+))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.map(($2 ? $2 : 'item') => { return $3; })"
+            Pattern.compile("(\\w+)\\.collect\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.map(($2 != null ? $2 : 'item') => { return $3; })"
         ));
         
         // Groovy find closure to JavaScript find
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.find\\s*\\{\\s*(?:it|([\\w,]+))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.find(($2 ? $2 : 'item') => { return $3; })"
+            Pattern.compile("(\\w+)\\.find\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.find(($2 != null ? $2 : 'item') => { return $3; })"
         ));
         
         // Groovy findAll closure to JavaScript filter
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.findAll\\s*\\{\\s*(?:it|([\\w,]+))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.filter(($2 ? $2 : 'item') => { return $3; })"
+            Pattern.compile("(\\w+)\\.findAll\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.filter(($2 != null ? $2 : 'item') => { return $3; })"
         ));
         
         // Groovy any closure to JavaScript some
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.any\\s*\\{\\s*(?:it|([\\w,]+))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.some(($2 ? $2 : 'item') => { return $3; })"
+            Pattern.compile("(\\w+)\\.any\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.some(($2 != null ? $2 : 'item') => { return $3; })"
         ));
         
         // Groovy every/all closure to JavaScript every
         SYNTAX_CONVERSIONS.add(new PatternReplacement(
-            Pattern.compile("(\\w+)\\.(every|all)\\s*\\{\\s*(?:it|([\\w,]+))\\s*->\\s*(.+?)\\s*\\}"),
-            "$1.every(($3 ? $3 : 'item') => { return $4; })"
+            Pattern.compile("(\\w+)\\.(every|all)\\s*\\{\\s*(?:it|(\\w+(?:,\\s*\\w+)*))\\s*->\\s*(.+?)\\s*\\}"),
+            "$1.every(($3 != null ? $3 : 'item') => { return $4; })"
         ));
         
         // Groovy println to JavaScript console.log
@@ -201,6 +201,46 @@ public class ScriptConverter {
     }
     
     /**
+     * Convert a Groovy script to JavaScript with a specific script type.
+     * 
+     * @param groovyScript The Groovy script to convert
+     * @param scriptType The type of script (e.g., "test", "library")
+     * @return The converted JavaScript
+     */
+    public static String convertToJavaScript(String groovyScript, String scriptType) {
+        ScriptConverter converter = new ScriptConverter();
+        String jsScript = converter.convertGroovyToJavaScript(groovyScript);
+        
+        // Add additional context based on script type
+        if ("library".equals(scriptType)) {
+            // For libraries, wrap in a module pattern to avoid global namespace pollution
+            StringBuilder libraryScript = new StringBuilder();
+            libraryScript.append("// Ready API Library Script\n");
+            libraryScript.append("const readyApiLibrary = (function() {\n");
+            libraryScript.append("  // Library exports\n");
+            libraryScript.append("  return {\n");
+            libraryScript.append("    init: function() {\n");
+            libraryScript.append("      // Initialize library methods\n");
+            
+            // Add the converted script with indentation
+            String[] lines = jsScript.split("\n");
+            for (String line : lines) {
+                libraryScript.append("      ").append(line).append("\n");
+            }
+            
+            libraryScript.append("    }\n");
+            libraryScript.append("  };\n");
+            libraryScript.append("})();\n\n");
+            libraryScript.append("// Initialize the library\n");
+            libraryScript.append("readyApiLibrary.init();\n");
+            
+            return libraryScript.toString();
+        }
+        
+        return jsScript;
+    }
+    
+    /**
      * Add ReadyAPI context mapping to the script.
      * 
      * @param script The script to modify
@@ -245,8 +285,40 @@ public class ScriptConverter {
         }
         
         public String apply(String input) {
-            Matcher matcher = pattern.matcher(input);
-            return matcher.replaceAll(replacement);
+            try {
+                Matcher matcher = pattern.matcher(input);
+                
+                // Use StringBuilder and appendReplacement for safer processing
+                StringBuilder result = new StringBuilder();
+                while (matcher.find()) {
+                    // Create dynamic replacement with null checks for capture groups
+                    String repl = replacement;
+                    for (int i = 0; i <= matcher.groupCount(); i++) {
+                        String groupVal = matcher.group(i);
+                        if (groupVal != null) {
+                            // Properly escape $ and \ in replacement
+                            groupVal = groupVal.replace("\\", "\\\\").replace("$", "\\$");
+                            repl = repl.replace("$" + i, groupVal);
+                        } else {
+                            // Replace references to null groups with safe defaults
+                            repl = repl.replace("$" + i, "");
+                        }
+                    }
+                    
+                    // Handle conditional expressions like $2 ? $2 : 'item'
+                    // with appropriate null checks
+                    repl = repl.replaceAll("\\(\\$\\d+ != null \\? \\$\\d+ : '([^']+)'\\)", "$1");
+                    
+                    // Add the replacement
+                    matcher.appendReplacement(result, repl);
+                }
+                matcher.appendTail(result);
+                return result.toString();
+            } catch (Exception e) {
+                // In case of regex error, log it and return the original string
+                System.err.println("Error in regex replacement: " + e.getMessage());
+                return input;
+            }
         }
     }
 }

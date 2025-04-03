@@ -18,6 +18,7 @@ public class ReadyApiProject {
     private List<ReadyApiScriptLibrary> scriptLibraries = new ArrayList<>();
     private List<String> projectReferences = new ArrayList<>();
     private List<ReadyApiProject> referencedProjects = new ArrayList<>();
+    private List<ReadyApiTestCase> directTestCases = new ArrayList<>();
     
     public String getId() {
         return id;
@@ -117,6 +118,18 @@ public class ReadyApiProject {
     
     public void addReferencedProject(ReadyApiProject referencedProject) {
         this.referencedProjects.add(referencedProject);
+    }
+    
+    public List<ReadyApiTestCase> getDirectTestCases() {
+        return directTestCases;
+    }
+    
+    public void setDirectTestCases(List<ReadyApiTestCase> directTestCases) {
+        this.directTestCases = directTestCases;
+    }
+    
+    public void addDirectTestCase(ReadyApiTestCase testCase) {
+        this.directTestCases.add(testCase);
     }
     
     /**

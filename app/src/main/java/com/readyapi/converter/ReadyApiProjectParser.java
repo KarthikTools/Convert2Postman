@@ -7,11 +7,23 @@ import org.dom4j.io.SAXReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.xml.sax.SAXException;
+import org.dom4j.io.DocumentSource;
+import org.dom4j.io.SAXContentHandler;
+import org.dom4j.io.OutputFormat;
+import org.dom4j.io.XMLWriter;
 
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.sax.SAXSource;
+import org.xml.sax.InputSource;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Properties;
 
 /**
  * Parser for ReadyAPI project XML files.
@@ -36,14 +48,26 @@ public class ReadyApiProjectParser {
     public ReadyApiProject parse(String filePath) throws DocumentException {
         logger.info("Parsing ReadyAPI project file: {}", filePath);
         
-        SAXReader reader = new SAXReader();
-        // Configure namespace handling
-        Map<String, String> nsMap = new HashMap<>();
-        nsMap.put("con", "http://eviware.com/soapui/config");
-        reader.getDocumentFactory().setXPathNamespaceURIs(nsMap);
-        
         try {
-            Document document = reader.read(new File(filePath));
+            // Configure Woodstox as the StAX implementation
+            System.setProperty("javax.xml.stream.XMLInputFactory", "com.ctc.wstx.stax.WstxInputFactory");
+            System.setProperty("javax.xml.stream.XMLOutputFactory", "com.ctc.wstx.stax.WstxOutputFactory");
+            System.setProperty("javax.xml.stream.XMLEventFactory", "com.ctc.wstx.stax.WstxEventFactory");
+            
+            // Use DOM4J with SAXReader for better error handling
+            SAXReader reader = createConfiguredReader();
+            
+            // Configure namespace handling
+            Map<String, String> nsMap = new HashMap<>();
+            nsMap.put("con", "http://eviware.com/soapui/config");
+            reader.getDocumentFactory().setXPathNamespaceURIs(nsMap);
+            
+            // Parse the document with proper error handling
+            Document document;
+            try (FileInputStream fis = new FileInputStream(new File(filePath))) {
+                document = reader.read(fis);
+            }
+            
             rootElement = document.getRootElement();
             
             // Detect project version and structure
@@ -62,7 +86,37 @@ public class ReadyApiProjectParser {
         } catch (DocumentException e) {
             logger.error("Error parsing project file: {}", filePath, e);
             throw e;
+        } catch (IOException e) {
+            logger.error("IO error reading project file: {}", filePath, e);
+            throw new DocumentException("IO error reading project file: " + e.getMessage(), e);
+        } catch (Exception e) {
+            logger.error("Unexpected error parsing project file: {}", filePath, e);
+            throw new DocumentException("Unexpected error: " + e.getMessage(), e);
         }
+    }
+    
+    /**
+     * Create a properly configured SAXReader
+     * 
+     * @return The configured SAXReader
+     */
+    private SAXReader createConfiguredReader() {
+        SAXReader reader = new SAXReader();
+        
+        try {
+            // Configure SAX parser features for security and compatibility
+            reader.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            
+            // Set a validating reader to handle entity references properly
+            reader.setValidation(false);
+            
+        } catch (SAXException e) {
+            logger.warn("Could not set recommended SAX parser feature", e);
+        }
+        
+        return reader;
     }
     
     /**
