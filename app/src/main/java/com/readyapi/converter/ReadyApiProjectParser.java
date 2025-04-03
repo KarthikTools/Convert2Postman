@@ -10,6 +10,8 @@ import org.xml.sax.SAXException;
 
 import java.io.File;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Parser for ReadyAPI project XML files.
@@ -30,54 +32,135 @@ public class ReadyApiProjectParser {
      * @throws DocumentException If there's an error parsing the XML
      */
     public ReadyApiProject parse(String filePath) throws DocumentException {
-        System.out.println("Parsing ReadyAPI project file: " + filePath);
+        logger.info("Parsing ReadyAPI project file: {}", filePath);
         
         SAXReader reader = new SAXReader();
-        try {
-            // Use a different XML parser implementation
-            System.setProperty("javax.xml.parsers.SAXParserFactory", "com.sun.org.apache.xerces.internal.jaxp.SAXParserFactoryImpl");
-            
-            // Disable DTD validation and external entities
-            reader.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-            reader.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            reader.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            reader.setFeature("http://xml.org/sax/features/validation", false);
-        } catch (SAXException e) {
-            System.err.println("Failed to set SAX features: " + e.getMessage());
-        }
-        
-        // Increase buffer size for large files
-        reader.setEncoding("UTF-8");
+        // Configure namespace handling
+        Map<String, String> nsMap = new HashMap<>();
+        nsMap.put("con", "http://eviware.com/soapui/config");
+        reader.getDocumentFactory().setXPathNamespaceURIs(nsMap);
         
         try {
             Document document = reader.read(new File(filePath));
             Element rootElement = document.getRootElement();
             
-            ReadyApiProject project = new ReadyApiProject();
-            project.setId(rootElement.attributeValue("id"));
-            project.setName(rootElement.attributeValue("name"));
+            // Detect project version and structure
+            String projectVersion = detectProjectVersion(rootElement);
+            logger.info("Detected project version: {}", projectVersion);
             
-            // Store the project path for resolving data files
-            File projectFile = new File(filePath);
-            project.addProperty("projectPath", projectFile.getParent());
+            // Use adapter pattern to handle different project structures
+            ProjectStructureAdapter adapter = ProjectStructureAdapterFactory.getAdapter(projectVersion);
             
-            // Parse project properties
-            parseProperties(rootElement, project);
-            
-            // Parse interfaces
-            parseInterfaces(rootElement, project);
-            
-            // Parse test suites
-            parseTestSuites(rootElement, project);
-            
-            // Parse script libraries
-            parseScriptLibraries(rootElement, project);
-            
-            System.out.println("Parsed ReadyAPI project: " + project);
-            return project;
-        } catch (Exception e) {
-            System.err.println("Error parsing XML file: " + e.getMessage());
-            throw new DocumentException("Failed to parse XML file: " + e.getMessage(), e);
+            if (adapter.canHandle(rootElement)) {
+                return adapter.parseProject(rootElement, filePath);
+            } else {
+                // Fallback to direct parsing
+                return parseProjectElement(rootElement, filePath);
+            }
+        } catch (DocumentException e) {
+            logger.error("Error parsing project file: {}", filePath, e);
+            throw e;
+        }
+    }
+    
+    /**
+     * Detect ReadyAPI project version.
+     * 
+     * @param rootElement The root XML element
+     * @return The detected project version
+     */
+    private String detectProjectVersion(Element rootElement) {
+        // Try different attributes to determine version
+        String version = rootElement.attributeValue("created");
+        if (version == null) {
+            version = rootElement.attributeValue("soapui-version");
+        }
+        if (version == null) {
+            version = "unknown";
+        }
+        return version;
+    }
+    
+    /**
+     * Parse a project element.
+     * 
+     * @param rootElement The root XML element
+     * @param filePath Path to the project file
+     * @return The parsed ReadyAPI project
+     */
+    public ReadyApiProject parseProjectElement(Element rootElement, String filePath) {
+        ReadyApiProject project = new ReadyApiProject();
+        project.setName(rootElement.attributeValue("name"));
+        project.setFilePath(filePath);
+        
+        // Parse project properties
+        parseProjectProperties(rootElement, project);
+        
+        // Parse project references for composite projects
+        parseProjectReferences(rootElement, project);
+        
+        // Parse interfaces
+        parseInterfaces(rootElement, project);
+        
+        // Parse test suites
+        parseTestSuites(rootElement, project);
+        
+        // Parse script libraries
+        parseScriptLibraries(rootElement, project);
+        
+        return project;
+    }
+    
+    /**
+     * Parse project references for composite projects.
+     * 
+     * @param rootElement The root XML element
+     * @param project The ReadyAPI project to populate
+     */
+    private void parseProjectReferences(Element rootElement, ReadyApiProject project) {
+        Element referencesElement = rootElement.element("projectReferences");
+        if (referencesElement != null) {
+            List<Element> referenceElements = referencesElement.elements("projectReference");
+            for (Element referenceElement : referenceElements) {
+                String refPath = referenceElement.attributeValue("path");
+                if (refPath != null && !refPath.isEmpty()) {
+                    logger.info("Found project reference: {}", refPath);
+                    project.addProjectReference(refPath);
+                    
+                    // Try to load the referenced project
+                    try {
+                        File referencedFile = resolveReferencePath(refPath, project.getFilePath());
+                        if (referencedFile.exists()) {
+                            ReadyApiProject referencedProject = parse(referencedFile.getPath());
+                            project.addReferencedProject(referencedProject);
+                            logger.info("Successfully loaded referenced project: {}", refPath);
+                        } else {
+                            logger.warn("Referenced project file not found: {}", referencedFile.getPath());
+                        }
+                    } catch (Exception e) {
+                        logger.error("Failed to load referenced project: {}", refPath, e);
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Resolve a referenced project path relative to the main project.
+     * 
+     * @param referencePath The reference path from XML
+     * @param mainProjectPath The main project file path
+     * @return The resolved reference file
+     */
+    private File resolveReferencePath(String referencePath, String mainProjectPath) {
+        File mainProjectFile = new File(mainProjectPath);
+        File mainProjectDir = mainProjectFile.getParentFile();
+        
+        // Handle both absolute and relative paths
+        if (new File(referencePath).isAbsolute()) {
+            return new File(referencePath);
+        } else {
+            return new File(mainProjectDir, referencePath);
         }
     }
     
@@ -87,7 +170,7 @@ public class ReadyApiProjectParser {
      * @param rootElement The XML root element
      * @param project The project to populate
      */
-    private void parseProperties(Element rootElement, ReadyApiProject project) {
+    private void parseProjectProperties(Element rootElement, ReadyApiProject project) {
         Element propertiesElement = rootElement.element("properties");
         if (propertiesElement != null) {
             List<Element> propertyElements = propertiesElement.elements("property");
@@ -396,83 +479,101 @@ public class ReadyApiProjectParser {
                                 for (Element transferElement : transfersElement.elements("transfer")) {
                                     ReadyApiTestStep.PropertyTransfer transfer = new ReadyApiTestStep.PropertyTransfer();
                                     
-                                    // Parse source
+                                    // Set name if available
+                                    String transferName = transferElement.attributeValue("name");
+                                    if (transferName != null && !transferName.isEmpty()) {
+                                        transfer.setName(transferName);
+                                    }
+                                    
+                                    // Source settings
                                     Element sourceElement = transferElement.element("source");
                                     if (sourceElement != null) {
-                                        Element sourceStepElement = sourceElement.element("sourceName");
-                                        if (sourceStepElement != null) {
-                                            transfer.setSourceName(sourceStepElement.getTextTrim());
+                                        String sourceName = sourceElement.attributeValue("stepName");
+                                        if (sourceName == null || sourceName.isEmpty()) {
+                                            sourceName = sourceElement.attributeValue("step");
                                         }
                                         
-                                        Element sourcePropElement = sourceElement.element("sourceProperty");
-                                        if (sourcePropElement != null) {
-                                            transfer.setSourceProperty(sourcePropElement.getTextTrim());
+                                        if (sourceName != null && !sourceName.isEmpty()) {
+                                            transfer.setSourceName(sourceName);
                                         }
                                         
-                                        Element sourcePathElement = sourceElement.element("sourcePath");
-                                        if (sourcePathElement != null) {
-                                            String sourcePath = sourcePathElement.getTextTrim();
-                                            
-                                            // Determine if it's XPath or JSONPath
-                                            Element sourceTypeElement = sourceElement.element("language");
-                                            if (sourceTypeElement != null) {
-                                                String sourceType = sourceTypeElement.getTextTrim();
-                                                if ("xpath".equalsIgnoreCase(sourceType) || 
-                                                     "xmlpath".equalsIgnoreCase(sourceType)) {
-                                                    transfer.setSourceXPath(sourcePath);
-                                                } else if ("jsonpath".equalsIgnoreCase(sourceType)) {
-                                                    transfer.setSourceJsonPath(sourcePath);
-                                                }
-                                            } else {
-                                                // Try to guess based on syntax
-                                                if (sourcePath.contains("/") || sourcePath.contains("@")) {
-                                                    transfer.setSourceXPath(sourcePath);
-                                                } else if (sourcePath.contains(".") || 
-                                                          sourcePath.contains("[") || 
-                                                          sourcePath.contains("$")) {
-                                                    transfer.setSourceJsonPath(sourcePath);
-                                                }
+                                        // Source property path handling
+                                        String sourceType = sourceElement.attributeValue("type");
+                                        String sourcePath = null;
+                                        String sourcePathLanguage = null;
+                                        
+                                        if ("XPATH".equalsIgnoreCase(sourceType)) {
+                                            sourcePath = sourceElement.elementText("path");
+                                            sourcePathLanguage = "xpath";
+                                        } else if ("JSONPATH".equalsIgnoreCase(sourceType)) {
+                                            sourcePath = sourceElement.elementText("path");
+                                            sourcePathLanguage = "jsonpath";
+                                        } else if ("PROPERTY".equalsIgnoreCase(sourceType)) {
+                                            sourcePath = sourceElement.elementText("property");
+                                            sourcePathLanguage = "property";
+                                        } else {
+                                            // Try to guess based on available elements
+                                            if (sourceElement.element("xpathExpression") != null) {
+                                                sourcePath = sourceElement.elementText("xpathExpression");
+                                                sourcePathLanguage = "xpath";
+                                            } else if (sourceElement.element("jsonPath") != null) {
+                                                sourcePath = sourceElement.elementText("jsonPath");
+                                                sourcePathLanguage = "jsonpath";
+                                            } else if (sourceElement.element("property") != null) {
+                                                sourcePath = sourceElement.elementText("property");
+                                                sourcePathLanguage = "property";
                                             }
+                                        }
+                                        
+                                        if (sourcePath != null && !sourcePath.isEmpty()) {
+                                            transfer.setSourcePath(sourcePath);
+                                            transfer.setSourcePathLanguage(sourcePathLanguage);
                                         }
                                     }
                                     
-                                    // Parse target
+                                    // Target settings
                                     Element targetElement = transferElement.element("target");
                                     if (targetElement != null) {
-                                        Element targetStepElement = targetElement.element("targetName");
-                                        if (targetStepElement != null) {
-                                            transfer.setTargetName(targetStepElement.getTextTrim());
+                                        String targetName = targetElement.attributeValue("stepName");
+                                        if (targetName == null || targetName.isEmpty()) {
+                                            targetName = targetElement.attributeValue("step");
                                         }
                                         
-                                        Element targetPropElement = targetElement.element("targetProperty");
-                                        if (targetPropElement != null) {
-                                            transfer.setTargetProperty(targetPropElement.getTextTrim());
+                                        if (targetName != null && !targetName.isEmpty()) {
+                                            transfer.setTargetName(targetName);
                                         }
                                         
-                                        Element targetPathElement = targetElement.element("targetPath");
-                                        if (targetPathElement != null) {
-                                            String targetPath = targetPathElement.getTextTrim();
-                                            
-                                            // Determine if it's XPath or JSONPath
-                                            Element targetTypeElement = targetElement.element("language");
-                                            if (targetTypeElement != null) {
-                                                String targetType = targetTypeElement.getTextTrim();
-                                                if ("xpath".equalsIgnoreCase(targetType) || 
-                                                     "xmlpath".equalsIgnoreCase(targetType)) {
-                                                    transfer.setTargetXPath(targetPath);
-                                                } else if ("jsonpath".equalsIgnoreCase(targetType)) {
-                                                    transfer.setTargetJsonPath(targetPath);
-                                                }
-                                            } else {
-                                                // Try to guess based on syntax
-                                                if (targetPath.contains("/") || targetPath.contains("@")) {
-                                                    transfer.setTargetXPath(targetPath);
-                                                } else if (targetPath.contains(".") || 
-                                                          targetPath.contains("[") || 
-                                                          targetPath.contains("$")) {
-                                                    transfer.setTargetJsonPath(targetPath);
-                                                }
+                                        // Target property path handling
+                                        String targetType = targetElement.attributeValue("type");
+                                        String targetPath = null;
+                                        String targetPathLanguage = null;
+                                        
+                                        if ("XPATH".equalsIgnoreCase(targetType)) {
+                                            targetPath = targetElement.elementText("path");
+                                            targetPathLanguage = "xpath";
+                                        } else if ("JSONPATH".equalsIgnoreCase(targetType)) {
+                                            targetPath = targetElement.elementText("path");
+                                            targetPathLanguage = "jsonpath";
+                                        } else if ("PROPERTY".equalsIgnoreCase(targetType)) {
+                                            targetPath = targetElement.elementText("property");
+                                            targetPathLanguage = "property";
+                                        } else {
+                                            // Try to guess based on available elements
+                                            if (targetElement.element("xpathExpression") != null) {
+                                                targetPath = targetElement.elementText("xpathExpression");
+                                                targetPathLanguage = "xpath";
+                                            } else if (targetElement.element("jsonPath") != null) {
+                                                targetPath = targetElement.elementText("jsonPath");
+                                                targetPathLanguage = "jsonpath";
+                                            } else if (targetElement.element("property") != null) {
+                                                targetPath = targetElement.elementText("property");
+                                                targetPathLanguage = "property";
                                             }
+                                        }
+                                        
+                                        if (targetPath != null && !targetPath.isEmpty()) {
+                                            transfer.setTargetPath(targetPath);
+                                            transfer.setTargetPathLanguage(targetPathLanguage);
                                         }
                                     }
                                     

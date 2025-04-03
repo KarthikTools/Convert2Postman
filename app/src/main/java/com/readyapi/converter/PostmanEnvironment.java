@@ -1,5 +1,11 @@
 package com.readyapi.converter;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -8,13 +14,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 
 /**
  * Represents a Postman environment.
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class PostmanEnvironment {
     private static final Logger logger = LoggerFactory.getLogger(PostmanEnvironment.class);
     
@@ -31,7 +35,6 @@ public class PostmanEnvironment {
         this.name = name;
     }
     
-    @JsonProperty("id")
     public String getId() {
         return id;
     }
@@ -40,7 +43,6 @@ public class PostmanEnvironment {
         this.id = id;
     }
     
-    @JsonProperty("name")
     public String getName() {
         return name;
     }
@@ -54,16 +56,65 @@ public class PostmanEnvironment {
         return values;
     }
     
+    @JsonIgnore
+    public List<PostmanEnvironmentVariable> getVariables() {
+        return values;
+    }
+    
     public void setValues(List<PostmanEnvironmentVariable> values) {
         this.values = values;
     }
     
-    public void addVariable(String key, String value) {
-        this.values.add(new PostmanEnvironmentVariable(key, value));
+    /**
+     * Add a variable to the environment.
+     * 
+     * @param variable The variable to add
+     */
+    public void addVariable(PostmanEnvironmentVariable variable) {
+        this.values.add(variable);
     }
     
-    public void addVariable(String key, String value, String type) {
-        this.values.add(new PostmanEnvironmentVariable(key, value, type));
+    /**
+     * Add a variable to the environment.
+     * 
+     * @param key The variable key
+     * @param value The variable value
+     * @return The created environment variable
+     */
+    public PostmanEnvironmentVariable addVariable(String key, String value) {
+        PostmanEnvironmentVariable variable = new PostmanEnvironmentVariable(key, value);
+        this.values.add(variable);
+        return variable;
+    }
+    
+    /**
+     * Check if the environment contains a variable with the given key.
+     * 
+     * @param key The variable key
+     * @return True if the environment contains the variable
+     */
+    public boolean hasVariable(String key) {
+        for (PostmanEnvironmentVariable variable : values) {
+            if (variable.getKey().equals(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * Get a variable by key.
+     * 
+     * @param key The variable key
+     * @return The variable, or null if not found
+     */
+    public PostmanEnvironmentVariable getVariable(String key) {
+        for (PostmanEnvironmentVariable variable : values) {
+            if (variable.getKey().equals(key)) {
+                return variable;
+            }
+        }
+        return null;
     }
     
     /**
@@ -80,27 +131,46 @@ public class PostmanEnvironment {
     }
     
     /**
-     * Nested class to represent a Postman environment variable.
+     * Represents a Postman environment variable.
      */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public static class PostmanEnvironmentVariable {
         private String key;
         private String value;
         private String type;
-        private boolean enabled = true;
+        private boolean enabled;
         
         public PostmanEnvironmentVariable() {
+            this.enabled = true;
+            this.type = "default";
         }
         
+        /**
+         * Create a new PostmanEnvironmentVariable.
+         * 
+         * @param key The variable key
+         * @param value The variable value
+         */
         public PostmanEnvironmentVariable(String key, String value) {
             this.key = key;
             this.value = value;
             this.type = "default";
+            this.enabled = true;
         }
         
-        public PostmanEnvironmentVariable(String key, String value, String type) {
+        /**
+         * Create a new PostmanEnvironmentVariable.
+         * 
+         * @param key The variable key
+         * @param value The variable value
+         * @param type The variable type
+         * @param enabled Whether the variable is enabled
+         */
+        public PostmanEnvironmentVariable(String key, String value, String type, boolean enabled) {
             this.key = key;
             this.value = value;
             this.type = type;
+            this.enabled = enabled;
         }
         
         public String getKey() {

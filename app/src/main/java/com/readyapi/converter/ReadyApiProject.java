@@ -6,15 +6,18 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Represents a ReadyAPI project structure.
+ * Represents a ReadyAPI project.
  */
 public class ReadyApiProject {
     private String id;
     private String name;
+    private String filePath;
     private Map<String, String> properties = new HashMap<>();
     private List<ReadyApiInterface> interfaces = new ArrayList<>();
     private List<ReadyApiTestSuite> testSuites = new ArrayList<>();
     private List<ReadyApiScriptLibrary> scriptLibraries = new ArrayList<>();
+    private List<String> projectReferences = new ArrayList<>();
+    private List<ReadyApiProject> referencedProjects = new ArrayList<>();
     
     public String getId() {
         return id;
@@ -30,6 +33,14 @@ public class ReadyApiProject {
     
     public void setName(String name) {
         this.name = name;
+    }
+    
+    public String getFilePath() {
+        return filePath;
+    }
+    
+    public void setFilePath(String filePath) {
+        this.filePath = filePath;
     }
     
     public Map<String, String> getProperties() {
@@ -84,15 +95,103 @@ public class ReadyApiProject {
         this.scriptLibraries.add(scriptLibrary);
     }
     
+    public List<String> getProjectReferences() {
+        return projectReferences;
+    }
+    
+    public void setProjectReferences(List<String> projectReferences) {
+        this.projectReferences = projectReferences;
+    }
+    
+    public void addProjectReference(String reference) {
+        this.projectReferences.add(reference);
+    }
+    
+    public List<ReadyApiProject> getReferencedProjects() {
+        return referencedProjects;
+    }
+    
+    public void setReferencedProjects(List<ReadyApiProject> referencedProjects) {
+        this.referencedProjects = referencedProjects;
+    }
+    
+    public void addReferencedProject(ReadyApiProject referencedProject) {
+        this.referencedProjects.add(referencedProject);
+    }
+    
+    /**
+     * Get all interfaces including those from referenced projects.
+     * 
+     * @return List of all interfaces 
+     */
+    public List<ReadyApiInterface> getAllInterfaces() {
+        List<ReadyApiInterface> allInterfaces = new ArrayList<>(interfaces);
+        
+        // Add interfaces from referenced projects
+        for (ReadyApiProject referencedProject : referencedProjects) {
+            allInterfaces.addAll(referencedProject.getInterfaces());
+        }
+        
+        return allInterfaces;
+    }
+    
+    /**
+     * Get all test suites including those from referenced projects.
+     * 
+     * @return List of all test suites
+     */
+    public List<ReadyApiTestSuite> getAllTestSuites() {
+        List<ReadyApiTestSuite> allTestSuites = new ArrayList<>(testSuites);
+        
+        // Add test suites from referenced projects
+        for (ReadyApiProject referencedProject : referencedProjects) {
+            allTestSuites.addAll(referencedProject.getTestSuites());
+        }
+        
+        return allTestSuites;
+    }
+    
+    /**
+     * Get all script libraries including those from referenced projects.
+     * 
+     * @return List of all script libraries
+     */
+    public List<ReadyApiScriptLibrary> getAllScriptLibraries() {
+        List<ReadyApiScriptLibrary> allScriptLibraries = new ArrayList<>(scriptLibraries);
+        
+        // Add script libraries from referenced projects
+        for (ReadyApiProject referencedProject : referencedProjects) {
+            allScriptLibraries.addAll(referencedProject.getScriptLibraries());
+        }
+        
+        return allScriptLibraries;
+    }
+    
+    /**
+     * Get all properties including those from referenced projects.
+     * 
+     * @return Map of all properties
+     */
+    public Map<String, String> getAllProperties() {
+        Map<String, String> allProperties = new HashMap<>(properties);
+        
+        // Add properties from referenced projects
+        for (ReadyApiProject referencedProject : referencedProjects) {
+            allProperties.putAll(referencedProject.getProperties());
+        }
+        
+        return allProperties;
+    }
+    
     @Override
     public String toString() {
         return "ReadyApiProject{" +
                 "id='" + id + '\'' +
                 ", name='" + name + '\'' +
-                ", properties=" + properties.size() +
                 ", interfaces=" + interfaces.size() +
                 ", testSuites=" + testSuites.size() +
                 ", scriptLibraries=" + scriptLibraries.size() +
+                ", referencedProjects=" + referencedProjects.size() +
                 '}';
     }
 } 

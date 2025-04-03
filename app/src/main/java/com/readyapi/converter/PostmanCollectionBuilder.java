@@ -45,6 +45,19 @@ public class PostmanCollectionBuilder {
         PostmanCollection collection = new PostmanCollection();
         PostmanCollection.PostmanInfo info = new PostmanCollection.PostmanInfo();
         info.setName(project.getName());
+        
+        // Add description with composite project information if applicable
+        if (!project.getReferencedProjects().isEmpty()) {
+            StringBuilder description = new StringBuilder("Composite project including:");
+            description.append("\n- ").append(project.getName()).append(" (Main)");
+            
+            for (ReadyApiProject referencedProject : project.getReferencedProjects()) {
+                description.append("\n- ").append(referencedProject.getName());
+            }
+            
+            info.setDescription(description.toString());
+        }
+        
         collection.setInfo(info);
         
         // Create main folder structure
@@ -54,11 +67,11 @@ public class PostmanCollectionBuilder {
         PostmanItem testSuitesFolder = new PostmanItem();
         testSuitesFolder.setName("Test Suites");
         
-        // Add interfaces
-        addInterfaces(interfacesFolder);
+        // Add interfaces - use getAllInterfaces to include referenced projects
+        addInterfaces(interfacesFolder, project.getAllInterfaces());
         
-        // Add test suites
-        addTestSuites(testSuitesFolder);
+        // Add test suites - use getAllTestSuites to include referenced projects
+        addTestSuites(testSuitesFolder, project.getAllTestSuites(), project.getAllScriptLibraries());
         
         // Add variables
         addVariables(collection);
@@ -73,8 +86,8 @@ public class PostmanCollectionBuilder {
         }
         
         logger.info("Built Postman collection with {} interfaces and {} test suites", 
-                project.getInterfaces().size(), 
-                project.getTestSuites().size());
+                project.getAllInterfaces().size(), 
+                project.getAllTestSuites().size());
         
         return collection;
     }
@@ -83,9 +96,10 @@ public class PostmanCollectionBuilder {
      * Add interfaces to the Postman collection.
      * 
      * @param interfacesFolder The interfaces folder item
+     * @param apiInterfaces List of interfaces to add
      */
-    private void addInterfaces(PostmanItem interfacesFolder) {
-        for (ReadyApiInterface apiInterface : project.getInterfaces()) {
+    private void addInterfaces(PostmanItem interfacesFolder, List<ReadyApiInterface> apiInterfaces) {
+        for (ReadyApiInterface apiInterface : apiInterfaces) {
             PostmanItem interfaceFolder = new PostmanItem();
             interfaceFolder.setName(apiInterface.getName());
             
@@ -181,18 +195,21 @@ public class PostmanCollectionBuilder {
      * Add test suites to the Postman collection.
      * 
      * @param testSuitesFolder The test suites folder item
+     * @param testSuites List of test suites to add
+     * @param scriptLibraries List of script libraries to use
      */
-    private void addTestSuites(PostmanItem testSuitesFolder) {
+    private void addTestSuites(PostmanItem testSuitesFolder, List<ReadyApiTestSuite> testSuites, 
+                               List<ReadyApiScriptLibrary> scriptLibraries) {
         Map<String, String> scriptLibraryMap = new HashMap<>();
         
         // First, convert script libraries to JavaScript
-        for (ReadyApiScriptLibrary scriptLibrary : project.getScriptLibraries()) {
+        for (ReadyApiScriptLibrary scriptLibrary : scriptLibraries) {
             String jsLibrary = scriptLibrary.convertToJavaScript();
             scriptLibraryMap.put(scriptLibrary.getName(), jsLibrary);
         }
         
         // Convert test suites
-        for (ReadyApiTestSuite testSuite : project.getTestSuites()) {
+        for (ReadyApiTestSuite testSuite : testSuites) {
             PostmanItem testSuiteFolder = new PostmanItem();
             testSuiteFolder.setName(testSuite.getName());
             

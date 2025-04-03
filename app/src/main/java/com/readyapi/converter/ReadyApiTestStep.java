@@ -200,20 +200,21 @@ public class ReadyApiTestStep {
     }
     
     /**
-     * Convert a property transfer test step to a JavaScript snippet for Postman.
+     * Convert property transfers to JavaScript.
      * 
-     * @return JavaScript code for Postman
+     * @return JavaScript code for property transfers
      */
     public String convertPropertyTransfersToJavaScript() {
-        if (!"propertytransfer".equalsIgnoreCase(type) || propertyTransfers.isEmpty()) {
+        if (!"propertytransfer".equalsIgnoreCase(type)) {
             return "";
         }
         
         StringBuilder jsCode = new StringBuilder();
-        jsCode.append("// Property Transfers from step: ").append(name).append("\n");
+        
+        jsCode.append("// Property transfers from step: ").append(name).append("\n");
         
         for (PropertyTransfer transfer : propertyTransfers) {
-            jsCode.append(transfer.toJavaScript()).append("\n\n");
+            jsCode.append(transfer.toJavaScript()).append("\n");
         }
         
         return jsCode.toString();
@@ -398,17 +399,24 @@ public class ReadyApiTestStep {
     }
     
     /**
-     * Represents a property transfer between test steps.
+     * Class representing a property transfer.
      */
     public static class PropertyTransfer {
+        private String name;
         private String sourceName;
-        private String sourceProperty;
-        private String sourceXPath;
-        private String sourceJsonPath;
+        private String sourcePath;
+        private String sourcePathLanguage;
         private String targetName;
-        private String targetProperty;
-        private String targetXPath;
-        private String targetJsonPath;
+        private String targetPath;
+        private String targetPathLanguage;
+        
+        public String getName() {
+            return name;
+        }
+        
+        public void setName(String name) {
+            this.name = name;
+        }
         
         public String getSourceName() {
             return sourceName;
@@ -418,28 +426,20 @@ public class ReadyApiTestStep {
             this.sourceName = sourceName;
         }
         
-        public String getSourceProperty() {
-            return sourceProperty;
+        public String getSourcePath() {
+            return sourcePath;
         }
         
-        public void setSourceProperty(String sourceProperty) {
-            this.sourceProperty = sourceProperty;
+        public void setSourcePath(String sourcePath) {
+            this.sourcePath = sourcePath;
         }
         
-        public String getSourceXPath() {
-            return sourceXPath;
+        public String getSourcePathLanguage() {
+            return sourcePathLanguage;
         }
         
-        public void setSourceXPath(String sourceXPath) {
-            this.sourceXPath = sourceXPath;
-        }
-        
-        public String getSourceJsonPath() {
-            return sourceJsonPath;
-        }
-        
-        public void setSourceJsonPath(String sourceJsonPath) {
-            this.sourceJsonPath = sourceJsonPath;
+        public void setSourcePathLanguage(String sourcePathLanguage) {
+            this.sourcePathLanguage = sourcePathLanguage;
         }
         
         public String getTargetName() {
@@ -450,122 +450,196 @@ public class ReadyApiTestStep {
             this.targetName = targetName;
         }
         
-        public String getTargetProperty() {
-            return targetProperty;
+        public String getTargetPath() {
+            return targetPath;
         }
         
-        public void setTargetProperty(String targetProperty) {
-            this.targetProperty = targetProperty;
+        public void setTargetPath(String targetPath) {
+            this.targetPath = targetPath;
         }
         
-        public String getTargetXPath() {
-            return targetXPath;
+        public String getTargetPathLanguage() {
+            return targetPathLanguage;
         }
         
-        public void setTargetXPath(String targetXPath) {
-            this.targetXPath = targetXPath;
-        }
-        
-        public String getTargetJsonPath() {
-            return targetJsonPath;
-        }
-        
-        public void setTargetJsonPath(String targetJsonPath) {
-            this.targetJsonPath = targetJsonPath;
+        public void setTargetPathLanguage(String targetPathLanguage) {
+            this.targetPathLanguage = targetPathLanguage;
         }
         
         /**
-         * Convert this property transfer to a JavaScript snippet for Postman.
+         * Convert this property transfer to JavaScript.
          * 
-         * @return JavaScript code for Postman
+         * @return JavaScript code for this property transfer
          */
         public String toJavaScript() {
-            StringBuilder js = new StringBuilder();
-            js.append("// Transfer from ").append(sourceName).append(" to ").append(targetName).append("\n");
+            StringBuilder jsCode = new StringBuilder();
             
-            // Extract the source value
-            if (sourceXPath != null && !sourceXPath.isEmpty()) {
-                js.append("// Source XPath: ").append(sourceXPath).append("\n");
-                js.append("let sourceValue;\n");
-                js.append("try {\n");
-                js.append("    const sourceXml = pm.response.text();\n");
-                js.append("    // Note: Postman doesn't have built-in XPath support\n");
-                js.append("    // You will need to use a library like xml2js or similar\n");
-                js.append("    // This is a placeholder for the XML parsing code\n");
-                js.append("    sourceValue = \"XPATH_EXTRACTION_PLACEHOLDER\";\n");
-                js.append("    console.log('Source value from XPath: ' + sourceValue);\n");
-                js.append("} catch (error) {\n");
-                js.append("    console.error('Error extracting XPath: ' + error.message);\n");
-                js.append("}\n");
-            } else if (sourceJsonPath != null && !sourceJsonPath.isEmpty()) {
-                js.append("// Source JSONPath: ").append(sourceJsonPath).append("\n");
-                js.append("let sourceValue;\n");
-                js.append("try {\n");
-                js.append("    sourceValue = pm.response.json()").append(convertJsonPathToJS(sourceJsonPath)).append(";\n");
-                js.append("    console.log('Source value from JSONPath: ' + sourceValue);\n");
-                js.append("} catch (error) {\n");
-                js.append("    console.error('Error extracting JSONPath: ' + error.message);\n");
-                js.append("}\n");
-            } else if (sourceProperty != null && !sourceProperty.isEmpty()) {
-                js.append("// Source property: ").append(sourceProperty).append("\n");
-                js.append("let sourceValue = pm.variables.get('").append(sourceProperty).append("');\n");
-                js.append("console.log('Source value from property: ' + sourceValue);\n");
-            }
+            jsCode.append("// Property Transfer: ").append(name != null ? name : "Unnamed").append("\n");
+            jsCode.append("// Source: ").append(sourceName).append(", Target: ").append(targetName).append("\n");
             
-            // Set the target value
-            if (targetXPath != null && !targetXPath.isEmpty()) {
-                js.append("// Target XPath not directly supported in Postman\n");
-                js.append("// Storing in a variable instead\n");
+            String sourceVarName = "sourceValue";
+            
+            // Extract source value
+            if (sourcePathLanguage != null && sourcePathLanguage.toLowerCase().contains("xpath")) {
+                // Handle XPath source
+                jsCode.append(XPathHelper.getXPathPostmanNotes());
                 
-                if (targetProperty != null && !targetProperty.isEmpty()) {
-                    js.append("pm.variables.set('").append(targetProperty).append("', sourceValue);\n");
+                // Get source content
+                if (sourceName != null && sourceName.toLowerCase().contains("response")) {
+                    jsCode.append("const sourceContent = pm.response.text();\n");
                 } else {
-                    js.append("pm.variables.set('xpath_target_").append(targetName.replace(" ", "_")).append("', sourceValue);\n");
+                    jsCode.append("const sourceContent = pm.variables.get('").append(sourceName).append("');\n");
                 }
-            } else if (targetJsonPath != null && !targetJsonPath.isEmpty()) {
-                js.append("// Target JSONPath not directly supported for request bodies in Postman\n");
-                js.append("// Storing in a variable instead\n");
                 
-                if (targetProperty != null && !targetProperty.isEmpty()) {
-                    js.append("pm.variables.set('").append(targetProperty).append("', sourceValue);\n");
+                // Add XPath evaluation
+                jsCode.append(XPathHelper.convertXPathToJavaScript(sourcePath, "sourceContent", sourceVarName));
+            } else if (sourcePathLanguage != null && sourcePathLanguage.toLowerCase().contains("jsonpath")) {
+                // Handle JSONPath source
+                if (sourceName != null && sourceName.toLowerCase().contains("response")) {
+                    jsCode.append("const sourceContent = pm.response.json();\n");
                 } else {
-                    js.append("pm.variables.set('jsonpath_target_").append(targetName.replace(" ", "_")).append("', sourceValue);\n");
+                    jsCode.append("const sourceContent = pm.variables.get('").append(sourceName).append("');\n");
+                    jsCode.append("// Parse JSON if needed\n");
+                    jsCode.append("if (typeof sourceContent === 'string') {\n");
+                    jsCode.append("    try {\n");
+                    jsCode.append("        sourceContent = JSON.parse(sourceContent);\n");
+                    jsCode.append("    } catch (e) {\n");
+                    jsCode.append("        console.error('Failed to parse JSON:', e);\n");
+                    jsCode.append("    }\n");
+                    jsCode.append("}\n");
                 }
-            } else if (targetProperty != null && !targetProperty.isEmpty()) {
-                js.append("// Setting target property: ").append(targetProperty).append("\n");
-                js.append("pm.variables.set('").append(targetProperty).append("', sourceValue);\n");
+                
+                // Add JSONPath evaluation
+                jsCode.append(XPathHelper.convertJSONPathToJavaScript(sourcePath, "sourceContent", sourceVarName));
+            } else {
+                // Handle property source
+                if (sourceName != null && sourceName.toLowerCase().contains("response")) {
+                    if (sourcePath != null && !sourcePath.isEmpty()) {
+                        jsCode.append("let ").append(sourceVarName).append(" = pm.response.json()");
+                        
+                        // Handle simple property paths
+                        String[] parts = sourcePath.split("\\.");
+                        for (String part : parts) {
+                            if (!part.isEmpty()) {
+                                jsCode.append("?.").append(part);
+                            }
+                        }
+                        
+                        jsCode.append(";\n");
+                    } else {
+                        jsCode.append("let ").append(sourceVarName).append(" = pm.response.text();\n");
+                    }
+                } else {
+                    jsCode.append("let ").append(sourceVarName).append(" = pm.variables.get('").append(sourceName).append("');\n");
+                    
+                    // Apply path if provided
+                    if (sourcePath != null && !sourcePath.isEmpty()) {
+                        jsCode.append("// Try to parse JSON and apply path\n");
+                        jsCode.append("try {\n");
+                        jsCode.append("    let jsonObj = JSON.parse(").append(sourceVarName).append(");\n");
+                        
+                        // Handle simple property paths
+                        String[] parts = sourcePath.split("\\.");
+                        jsCode.append("    ").append(sourceVarName).append(" = jsonObj");
+                        for (String part : parts) {
+                            if (!part.isEmpty()) {
+                                jsCode.append("?.").append(part);
+                            }
+                        }
+                        
+                        jsCode.append(";\n");
+                        jsCode.append("} catch (e) {\n");
+                        jsCode.append("    // Not JSON or invalid path, keep original value\n");
+                        jsCode.append("    console.log('Could not parse JSON or apply path: ' + e.message);\n");
+                        jsCode.append("}\n");
+                    }
+                }
             }
             
-            return js.toString();
-        }
-        
-        /**
-         * Convert a JSONPath expression to JavaScript property access.
-         * 
-         * @param jsonPath JSONPath expression
-         * @return JavaScript property access code
-         */
-        private String convertJsonPathToJS(String jsonPath) {
-            if (jsonPath == null || jsonPath.isEmpty()) {
-                return "";
+            // Set target value
+            if (targetName != null && targetName.toLowerCase().contains("request")) {
+                // Set request property
+                if (targetPath != null && !targetPath.isEmpty()) {
+                    if (targetPath.toLowerCase().contains("header")) {
+                        // Set request header
+                        String headerName = targetPath.replaceAll("(?i).*header\\s*\\[([^\\]]+)\\].*", "$1");
+                        jsCode.append("pm.request.headers.upsert({\n");
+                        jsCode.append("    key: '").append(headerName).append("',\n");
+                        jsCode.append("    value: ").append(sourceVarName).append("\n");
+                        jsCode.append("});\n");
+                    } else if (targetPath.toLowerCase().contains("query")) {
+                        // Set query parameter
+                        String paramName = targetPath.replaceAll("(?i).*query\\s*\\[([^\\]]+)\\].*", "$1");
+                        jsCode.append("// Set query parameter in the request URL\n");
+                        jsCode.append("let url = pm.request.url.toString();\n");
+                        jsCode.append("const urlObj = new URL(url);\n");
+                        jsCode.append("urlObj.searchParams.set('").append(paramName).append("', ").append(sourceVarName).append(");\n");
+                        jsCode.append("pm.request.url.update(urlObj.toString());\n");
+                    } else {
+                        // General request property
+                        jsCode.append("// Set request property: ").append(targetPath).append("\n");
+                        jsCode.append("console.log('Setting request property is not fully supported in Postman. Using environment variable instead.');\n");
+                        jsCode.append("pm.variables.set('").append(targetPath).append("', ").append(sourceVarName).append(");\n");
+                    }
+                } else {
+                    // Set whole request
+                    jsCode.append("// Setting entire request body is not fully supported in Postman scripts\n");
+                    jsCode.append("console.log('Setting entire request body directly is not supported. Using environment variable.');\n");
+                    jsCode.append("pm.variables.set('requestBody', ").append(sourceVarName).append(");\n");
+                }
+            } else {
+                // Set variable or environment property
+                if (targetPath != null && !targetPath.isEmpty()) {
+                    jsCode.append("// Set target path: ").append(targetPath).append(" in ").append(targetName).append("\n");
+                    jsCode.append("let targetObj = pm.variables.get('").append(targetName).append("');\n");
+                    jsCode.append("try {\n");
+                    jsCode.append("    // Parse target as JSON if it's a string\n");
+                    jsCode.append("    if (typeof targetObj === 'string') {\n");
+                    jsCode.append("        targetObj = JSON.parse(targetObj);\n");
+                    jsCode.append("    } else if (!targetObj) {\n");
+                    jsCode.append("        targetObj = {};\n");
+                    jsCode.append("    }\n");
+                    
+                    // Set nested property
+                    jsCode.append("    // Set nested property\n");
+                    jsCode.append("    const setNestedProperty = (obj, path, value) => {\n");
+                    jsCode.append("        const parts = path.split('.');\n");
+                    jsCode.append("        let current = obj;\n");
+                    jsCode.append("        for (let i = 0; i < parts.length - 1; i++) {\n");
+                    jsCode.append("            const part = parts[i];\n");
+                    jsCode.append("            if (!current[part]) current[part] = {};\n");
+                    jsCode.append("            current = current[part];\n");
+                    jsCode.append("        }\n");
+                    jsCode.append("        current[parts[parts.length - 1]] = value;\n");
+                    jsCode.append("        return obj;\n");
+                    jsCode.append("    };\n");
+                    
+                    jsCode.append("    // Apply the nested property setter\n");
+                    jsCode.append("    targetObj = setNestedProperty(targetObj, '").append(targetPath).append("', ").append(sourceVarName).append(");\n");
+                    jsCode.append("    pm.variables.set('").append(targetName).append("', JSON.stringify(targetObj));\n");
+                    jsCode.append("} catch (e) {\n");
+                    jsCode.append("    console.error('Failed to set nested property:', e);\n");
+                    jsCode.append("    // Fallback to simple variable\n");
+                    jsCode.append("    pm.variables.set('").append(targetName).append("_").append(targetPath.replace('.', '_')).append("', ").append(sourceVarName).append(");\n");
+                    jsCode.append("}\n");
+                } else {
+                    // Simple variable set
+                    jsCode.append("// Set target variable: ").append(targetName).append("\n");
+                    
+                    // Determine if we should use environment or collection variables
+                    if (targetName.toLowerCase().contains("project") || 
+                        targetName.toLowerCase().contains("environment") || 
+                        targetName.toLowerCase().contains("global")) {
+                        jsCode.append("pm.environment.set('").append(targetName).append("', ").append(sourceVarName).append(");\n");
+                    } else {
+                        jsCode.append("pm.variables.set('").append(targetName).append("', ").append(sourceVarName).append(");\n");
+                    }
+                }
             }
             
-            // Handle the most common JSONPath operations
-            String js = jsonPath;
+            jsCode.append("console.log('Property transfer completed: ").append(sourceName).append(" -> ").append(targetName).append("');\n");
             
-            // Replace $ root indicator
-            if (js.startsWith("$")) {
-                js = js.substring(1);
-            }
-            
-            // Replace array access [n] notation (already JavaScript compatible)
-            
-            // Replace dot notation (already JavaScript compatible, but ensure it starts with a dot)
-            if (!js.startsWith(".") && !js.startsWith("[")) {
-                js = "." + js;
-            }
-            
-            return js;
+            return jsCode.toString();
         }
     }
 } 
